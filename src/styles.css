@@ -1,0 +1,803 @@
+/* =====================================================================
+   Aryavart Dairy Farm — "Pure A2. Pure Health." design system
+   Theme derived from the main logo: engraved gold on deep black.
+   Type: Marcellus (engraved-style display) + Mukta (body, Devanagari).
+   ===================================================================== */
+
+:root {
+  /* core palette (from mainlogo.jpeg) */
+  --coal: #14110B;          /* page background */
+  --coal-2: #1A160D;        /* deep band */
+  --surface: #201B12;       /* cards */
+  --surface-2: #292318;     /* elevated / modals */
+  --gold: #C9A227;
+  --gold-2: #E4C766;        /* bright gold */
+  --gold-deep: #8F7519;
+  --ivory: #F1E9D4;         /* main text */
+
+  /* legacy aliases used across components */
+  --milk: var(--coal);
+  --cream: var(--coal-2);
+  --cream-2: #2E2818;
+  --leaf: var(--gold);           /* primary actions are gold now */
+  --leaf-dark: #B18A15;
+  --leaf-soft: rgba(201, 162, 39, 0.16);
+  --ghee: var(--gold-2);
+  --ghee-soft: rgba(228, 199, 102, 0.12);
+  --clay: #CDB671;               /* muted gold for eyebrows/captions */
+  --ink: var(--ivory);
+  --muted: #BAB199;
+  --line: rgba(201, 162, 39, 0.34);
+  --line-soft: rgba(201, 162, 39, 0.18);
+  --danger: #E4685A;
+  --danger-soft: rgba(228, 104, 90, 0.16);
+  --ok: #9CC08B;
+  --ok-soft: rgba(156, 192, 139, 0.16);
+  --wa: #1FAE55;
+  --radius: 14px;
+  --shadow: 0 24px 50px -22px rgba(0, 0, 0, 0.65);
+  --shadow-sm: 0 8px 22px -12px rgba(0, 0, 0, 0.55);
+  --gold-grad: linear-gradient(120deg, #8F7519 0%, #E4C766 45%, #C9A227 100%);
+  --font-display: "Marcellus", "Times New Roman", serif;
+  --font-body: "Mukta", "Segoe UI", system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background:
+    radial-gradient(1100px 500px at 85% -10%, rgba(201, 162, 39, 0.09), transparent 60%),
+    radial-gradient(900px 420px at -10% 30%, rgba(201, 162, 39, 0.05), transparent 55%),
+    var(--coal);
+  color: var(--ivory);
+  font-size: 16.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* `height: auto` is required alongside `max-width`: images now carry explicit
+   width/height attributes (which reserve layout space and stop the page jumping
+   as photos load), and without this the attribute height is kept while the width
+   shrinks — stretching every fluid image vertically. */
+img { max-width: 100%; height: auto; display: block; }
+
+h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 400; line-height: 1.14; color: var(--ivory); letter-spacing: 0.01em; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.5rem); }
+h2 { font-size: clamp(1.55rem, 3.4vw, 2.3rem); }
+h3 { font-size: 1.22rem; }
+
+p { color: var(--ivory); }
+a { color: var(--gold-2); text-decoration: none; }
+a:hover { color: #F2DE9B; }
+
+:focus-visible { outline: 2.5px solid var(--gold-2); outline-offset: 2px; border-radius: 4px; }
+
+::selection { background: rgba(201, 162, 39, 0.35); }
+
+/* gold gradient text — signature */
+.gold-text {
+  background: var(--gold-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---------- layout ---------- */
+.container { width: min(1200px, 92%); margin-inline: auto; }
+.container-wide { width: min(1340px, 94%); margin-inline: auto; }
+.section { padding: 88px 0; }
+.section-alt { background: linear-gradient(180deg, rgba(201,162,39,0.05), rgba(201,162,39,0.01)), var(--coal-2); border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+.section-head { max-width: 640px; margin-bottom: 38px; }
+.section-head p { color: var(--muted); margin-top: 8px; }
+
+.eyebrow {
+  display: inline-block;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--clay);
+  margin-bottom: 10px;
+}
+
+.hl {
+  background: var(--gold-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.page-head { padding: 56px 0 8px; }
+.page-head p { color: var(--muted); max-width: 660px; margin-top: 8px; }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.97rem;
+  padding: 11px 24px;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+.btn-primary { background: var(--gold-grad); color: #171307; box-shadow: 0 10px 26px -12px rgba(201, 162, 39, 0.55); }
+.btn-primary:hover { filter: brightness(1.07); color: #171307; }
+
+.btn-gold { background: var(--gold-2); color: #171307; box-shadow: var(--shadow-sm); }
+.btn-gold:hover { background: #F0D67F; color: #171307; }
+
+.btn-outline { background: transparent; color: var(--gold-2); border-color: var(--gold); }
+.btn-outline:hover { background: var(--leaf-soft); color: #F2DE9B; }
+
+.btn-ghost { background: transparent; color: var(--muted); }
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.06); color: var(--ivory); }
+
+.btn-danger { background: var(--danger-soft); color: var(--danger); }
+.btn-danger:hover { background: rgba(228, 104, 90, 0.28); }
+
+.btn-wa { background: var(--wa); color: #06130A; box-shadow: var(--shadow-sm); }
+.btn-wa:hover { background: #2BC968; color: #06130A; }
+
+.btn-sm { padding: 7px 16px; font-size: 0.88rem; }
+.btn-block { width: 100%; }
+
+/* ---------- chips ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip {
+  padding: 7px 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-body);
+}
+.chip:hover { border-color: var(--gold-2); color: var(--gold-2); }
+.chip.on { background: var(--gold-grad); border-color: transparent; color: #171307; }
+
+/* ---------- cards ---------- */
+.card {
+  background: linear-gradient(180deg, rgba(228, 199, 102, 0.05), rgba(228, 199, 102, 0)) , var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- forms ----------
+   One field is label / control / optional hint, stacked. The label is the same
+   small caps used by the stat cards and section labels, so a form reads as part
+   of the same panel rather than as a browser default dropped into it. */
+.field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
+.field > label {
+  font-size: 0.74rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted);
+}
+/* the * on a required label — gold, so it reads as marking rather than as a typo */
+.req { color: var(--gold-2); font-weight: 700; }
+.hint, .field .hint { font-size: 0.82rem; line-height: 1.5; color: var(--muted); }
+
+input, select, textarea {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--ivory);
+  background: #100E08;
+  border: 1.5px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 11px 14px;
+  width: 100%;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  color-scheme: dark;
+}
+/* Every control in a form the same height, so a row of text inputs, dates and
+   selects lines up on both edges instead of stepping up and down. Scoped to a
+   field's own control — a search pill or an inline picker sizes itself. */
+.field > input, .field > select { height: 46px; }
+input:hover, select:hover, textarea:hover { border-color: rgba(201, 162, 39, 0.4); }
+input::placeholder, textarea::placeholder { color: #6E6650; }
+input:focus, select:focus, textarea:focus {
+  border-color: var(--gold); outline: none; background: #14110A;
+}
+textarea { resize: vertical; min-height: 92px; }
+/* the native arrow is a different grey in every browser — draw our own gold one */
+select {
+  appearance: none; -webkit-appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%23C9A227' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 15px center;
+}
+select option { background: #14110A; color: var(--ivory); }
+input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.7; }
+input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+/* The grid owns the vertical rhythm — the field drops its own margin, or a
+   wrapped row and the row beside it disagree about the gap. */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 17px 18px; }
+.form-grid > .field { margin-bottom: 0; }
+/* a field that needs the whole row: a note, a description, a photo picker */
+.field-wide { grid-column: 1 / -1; }
+
+.alert { padding: 12px 16px; border-radius: 10px; font-weight: 500; margin-bottom: 16px; font-size: 0.95rem; }
+.alert-error { background: var(--danger-soft); color: #F1988D; border: 1px solid rgba(228,104,90,0.35); }
+.alert-ok { background: var(--ok-soft); color: #BCD9AE; border: 1px solid rgba(156,192,139,0.3); }
+
+/* ---------- tables ---------- */
+.tbl-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--line-soft); background: var(--surface); }
+table.tbl { width: 100%; border-collapse: collapse; font-size: 0.95rem; min-width: 560px; }
+table.tbl th {
+  text-align: left;
+  background: #100E08;
+  color: var(--gold-2);
+  font-weight: 700;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+table.tbl td { padding: 11px 14px; border-top: 1px solid var(--line-soft); color: var(--ivory); }
+table.tbl tbody tr { cursor: default; }
+table.tbl tr:hover td { background: rgba(228, 199, 102, 0.05); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tbl tfoot td { font-weight: 700; background: rgba(228, 199, 102, 0.1); color: var(--gold-2); }
+.row-click { cursor: pointer !important; }
+
+/* ---------- badges & stats ---------- */
+.badge { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.02em; }
+.badge-ok { background: var(--ok-soft); color: var(--ok); }
+.badge-off { background: rgba(255,255,255,0.08); color: var(--muted); }
+.badge-due { background: var(--danger-soft); color: var(--danger); }
+.badge-clear { background: var(--ok-soft); color: var(--ok); }
+.badge-gold { background: var(--ghee-soft); color: var(--gold-2); border: 1px solid var(--line); }
+
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.stat { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 18px 20px; position: relative; overflow: hidden; }
+.stat::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--gold-grad); opacity: 0.6; }
+.stat .stat-label { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.stat .stat-value { font-family: var(--font-display); font-size: 1.72rem; margin-top: 4px; color: var(--ivory); }
+.stat.stat-gold .stat-value { color: var(--gold-2); }
+.stat.stat-green .stat-value { color: var(--ok); }
+.stat.stat-red .stat-value { color: var(--danger); }
+
+/* ---------- khata (bill) ---------- */
+.khata { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; }
+.khata-head { padding: 22px 26px; border-bottom: 2px solid var(--gold); display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap; align-items: flex-start; background: #100E08; }
+.khata-head .brand { display: flex; gap: 14px; align-items: center; }
+.khata-head .brand img { width: 54px; height: 54px; border-radius: 50%; }
+.khata-head h3 { font-size: 1.32rem; color: var(--gold-2); }
+.khata-head .sub { font-size: 0.82rem; color: var(--muted); max-width: 330px; }
+.khata-meta { text-align: right; font-size: 0.9rem; color: var(--ivory); }
+.khata-meta b { display: block; font-size: 1.05rem; color: var(--gold-2); }
+.khata table.tbl { min-width: 520px; }
+.khata table.tbl td { border-top: 1px dashed rgba(201, 162, 39, 0.25); }
+.khata-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; padding: 18px 26px; background: #100E08; border-top: 1px solid var(--line-soft); }
+.khata-totals .t-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.khata-totals .t-value { font-family: var(--font-display); font-size: 1.35rem; color: var(--ivory); }
+.khata-totals .t-out .t-value { color: var(--danger); }
+.khata-totals .t-out.clear .t-value { color: var(--ok); }
+.khata-section-title { padding: 14px 26px 4px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--clay); }
+.khata-empty { padding: 28px 26px; color: var(--muted); }
+
+/* ---------- management panel ---------- */
+.mgmt {
+  --side-w: 248px;
+  display: grid; grid-template-columns: var(--side-w) 1fr; min-height: 100vh; background: var(--coal);
+  transition: grid-template-columns 0.24s ease;
+}
+.mgmt-side {
+  background: linear-gradient(180deg, #0B0A06, #12100A);
+  border-right: 1px solid var(--line-soft); color: var(--ivory);
+  padding: 20px 14px; display: flex; flex-direction: column; gap: 18px;
+  position: sticky; top: 0; height: 100vh; z-index: 30;
+}
+/* the logo row: brand on the left, the collapse arrow on the right */
+.side-head { display: flex; align-items: center; gap: 8px; }
+.mgmt-brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px; flex: 1; min-width: 0; }
+.side-toggle {
+  flex: none; width: 30px; height: 30px; display: grid; place-items: center;
+  background: none; cursor: pointer; color: var(--gold-2);
+  border: 1px solid var(--line-soft); border-radius: 9px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.side-toggle:hover { border-color: var(--gold); background: rgba(201, 162, 39, 0.12); }
+/* the arrow points the way the sidebar will move: left to collapse it, right to
+   bring it back */
+.side-toggle app-icon { transform: rotate(180deg); transition: transform 0.24s ease; }
+.mgmt.rail .side-toggle app-icon { transform: none; }
+/* the brand mark carries its own engraved ring — no CSS border on top of it */
+.mgmt-brand img { width: 44px; height: 44px; border-radius: 50%; filter: drop-shadow(0 0 12px rgba(201, 162, 39, 0.32)); }
+.mgmt-brand b { font-family: var(--font-display); font-size: 1.02rem; display: block; line-height: 1.1; color: var(--gold-2); }
+.mgmt-brand span { font-size: 0.68rem; opacity: 0.8; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.role-chip { margin: -6px 8px 0; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold-2); }
+.role-chip.view { color: var(--muted); }
+/* Only the item list scrolls — the logo, the role chip and the footer link stay
+   put, so a short window (or a long nav) never pushes them out of reach. */
+.mgmt-side nav {
+  display: flex; flex-direction: column; gap: 4px;
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: rgba(228, 199, 102, 0.3) transparent;
+}
+.mgmt-side nav::-webkit-scrollbar { width: 6px; }
+.mgmt-side nav::-webkit-scrollbar-track { background: transparent; }
+.mgmt-side nav::-webkit-scrollbar-thumb { background: rgba(228, 199, 102, 0.3); border-radius: 3px; }
+.side-head, .role-chip, .mgmt-side-foot { flex: none; }
+.mgmt-side nav a {
+  display: flex; align-items: center; gap: 11px;
+  color: #CFC7AE; padding: 11px 14px; border-radius: 10px;
+  font-weight: 600; font-size: 0.94rem; white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.mgmt-side nav a app-icon { color: var(--gold); transition: color 0.15s ease; }
+.mgmt-side nav a:hover { background: rgba(228, 199, 102, 0.08); color: var(--gold-2); }
+.mgmt-side nav a:hover app-icon { color: var(--gold-2); }
+.mgmt-side nav a.on { background: var(--gold-grad); color: #171307; }
+.mgmt-side nav a.on app-icon { color: #171307; }
+.mgmt-scrim { position: fixed; inset: 0; background: rgba(4, 3, 1, 0.7); backdrop-filter: blur(3px); z-index: 25; }
+.mgmt-main { min-width: 0; }
+.mgmt-top {
+  display: flex; align-items: center; gap: 14px;
+  background: rgba(13, 12, 9, 0.93); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line-soft); padding: 12px 26px;
+  position: sticky; top: 0; z-index: 20;
+}
+.mgmt-top .mt-title { font-family: var(--font-display); font-size: 1.05rem; color: var(--gold-2); flex: 1; min-width: 0; }
+.mgmt-user { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 0.92rem; color: var(--ivory); }
+.mgmt-burger {
+  display: none; background: none; cursor: pointer; padding: 7px;
+  color: var(--gold-2); border: 1px solid var(--line-soft); border-radius: 10px;
+}
+.mgmt-burger:hover { border-color: var(--gold); background: rgba(201, 162, 39, 0.1); }
+.mgmt-content { padding: 26px; }
+.mgmt-content h2 { margin-bottom: 4px; }
+.mgmt-sub { color: var(--muted); margin-bottom: 22px; }
+
+/* ---------- collapsed sidebar (desktop only) ----------
+   The burger narrows the sidebar to a rail instead of hiding it: the logo and
+   the nav icons stay, and everything that needs a line of text — the wordmark,
+   the role chip, the item labels, the footer link — drops out. Below the
+   breakpoint the same flag drives the off-canvas drawer, so none of this
+   applies there. */
+@media (min-width: 901px) {
+  /* the drawer's scrim would blanket a desktop layout, where the sidebar is
+     open by default and sits beside the content rather than over it */
+  .mgmt-scrim { display: none; }
+
+  .mgmt.rail { --side-w: 78px; }
+  .mgmt.rail .mgmt-side { padding: 20px 9px; }
+  /* no room for the logo and the arrow side by side — stack them */
+  .mgmt.rail .side-head { flex-direction: column; gap: 12px; }
+  .mgmt.rail .mgmt-brand { justify-content: center; padding: 4px 0; flex: none; }
+  .mgmt.rail .mb-text,
+  .mgmt.rail .role-chip,
+  .mgmt.rail .ni-label,
+  .mgmt.rail .side-link span { display: none; }
+  /* centre the icons and hold that centre through the component's hover shift */
+  .mgmt.rail .mgmt-side nav a,
+  .mgmt.rail .mgmt-side nav a:hover,
+  .mgmt.rail .side-link { justify-content: center; gap: 0; padding-left: 0; padding-right: 0; }
+  /* the footer link is inline-flex, so it shrinks to its icon and would sit
+     against the left edge unless its row centres it */
+  .mgmt.rail .mgmt-side-foot { display: flex; justify-content: center; }
+  /* a count has no room to spell itself out — it becomes a dot on the icon */
+  .mgmt.rail .ni-badge {
+    position: absolute; top: 6px; right: 13px;
+    min-width: 9px; width: 9px; height: 9px; padding: 0;
+    font-size: 0; border-radius: 50%;
+  }
+}
+.panel { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 22px; margin-bottom: 22px; }
+.panel h3 { margin-bottom: 14px; color: var(--gold-2); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 18px; }
+.toolbar .field { margin-bottom: 0; min-width: 160px; }
+/* the field that should eat the leftover width (a search box, usually) */
+.toolbar .field-grow { flex: 1; min-width: 220px; }
+/* pushes the primary action to the far end without an empty spacer element */
+.toolbar .push { margin-left: auto; }
+
+/* bar chart */
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 150px; padding: 10px 4px 0; }
+.bars .bar { flex: 1; background: linear-gradient(180deg, var(--gold-2), var(--gold-deep)); border-radius: 4px 4px 0 0; min-height: 3px; opacity: 0.75; transition: opacity 0.15s ease; }
+.bars .bar:hover { opacity: 1; }
+
+/* product sale cards on dashboard */
+.psale-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 14px; }
+.psale {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: var(--surface); border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--gold); border-radius: 12px; padding: 16px 18px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.psale:hover { transform: translateY(-2px); border-color: var(--line); border-left-color: var(--gold-2); }
+.psale .ps-name { font-weight: 700; color: var(--ivory); line-height: 1.3; }
+.psale .ps-month { font-family: var(--font-display); font-size: 1.45rem; color: var(--gold-2); margin-top: 6px; }
+.psale .ps-meta { font-size: 0.82rem; color: var(--muted); }
+
+/* ---------- modal ---------- */
+.modal-back { position: fixed; inset: 0; background: rgba(4, 3, 1, 0.78); backdrop-filter: blur(4px); display: grid; place-items: center; z-index: 300; padding: 18px; }
+.modal { width: min(580px, 100%); max-height: 92vh; overflow: auto; background: var(--surface-2); border: 1px solid var(--line); border-radius: 16px; padding: 26px; box-shadow: var(--shadow); }
+.modal h3 { margin-bottom: 16px; color: var(--gold-2); }
+/* title row: name on the left, a real close button on the right — clicking the
+   backdrop is not something a first-time user tries */
+.modal-head {
+  display: flex; align-items: flex-start; gap: 14px;
+  margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--line-soft);
+}
+.modal-head h3 { flex: 1; min-width: 0; margin: 0; }
+.modal-head .m-sub { display: block; margin-top: 5px; font-size: 0.84rem; font-weight: 500; color: var(--muted); }
+.modal-close {
+  flex: none; width: 34px; height: 34px; display: grid; place-items: center;
+  background: none; cursor: pointer; color: var(--muted);
+  border: 1px solid var(--line-soft); border-radius: 10px;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.modal-close:hover { color: var(--gold-2); border-color: var(--gold); background: rgba(201, 162, 39, 0.12); }
+.modal-actions {
+  display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+  margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line-soft);
+}
+/* a running total or a hint that sits opposite the buttons */
+.modal-actions .m-aside { margin-right: auto; }
+/* a line of context above the fields — "current outstanding", and the like */
+.m-note { margin-bottom: 16px; color: var(--muted); font-size: 0.92rem; }
+.m-note b { color: var(--gold-2); }
+.modal .m-total { font-family: var(--font-display); font-size: 1.4rem; color: var(--gold-2); }
+
+/* ---------- misc ---------- */
+.muted { color: var(--muted); }
+.right { text-align: right; }
+.mt { margin-top: 18px; }
+.mb { margin-bottom: 18px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid rgba(228, 199, 102, 0.25); border-top-color: var(--gold-2); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.fade-up { animation: fadeUp 0.65s ease both; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+.gold-rule { height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); border: none; margin: 0 auto; width: min(680px, 80%); }
+
+/* ---------- print (bill) — force light paper ---------- */
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border: 1px solid #999 !important; background: #fff !important; }
+  .print-area * { color: #1B1810 !important; background: transparent !important; border-color: #B8AE93 !important; text-shadow: none !important; }
+  .print-area .khata-head h3, .print-area .t-value { color: #6B5310 !important; }
+  .no-print { display: none !important; }
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  /* off-canvas sidebar: the old layout turned the nav into a horizontally
+     scrolling strip, which hid the last items and dropped the footer link */
+  .mgmt { grid-template-columns: 1fr; }
+  .mgmt-side {
+    position: fixed; inset: 0 auto 0 0; width: min(264px, 84vw); height: 100dvh;
+    transform: translateX(-102%); transition: transform 0.26s ease;
+    box-shadow: 24px 0 50px -30px rgba(0, 0, 0, 0.9);
+  }
+  .mgmt-side.open { transform: none; }
+  /* on a phone the drawer is opened from the header — the in-sidebar arrow
+     collapses a rail, and there is no rail at this width */
+  .mgmt-burger { display: inline-flex; }
+  .side-toggle { display: none; }
+  .grid-2 { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .section { padding: 46px 0; }
+  .mgmt-content { padding: 16px; }
+  .khata-head { padding: 16px; }
+  .khata-totals { padding: 14px 16px; }
+  .khata-meta { text-align: left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  html { scroll-behavior: auto; }
+}
+
+/* Trademark mark used beside the wordmark. Kept small, slightly faded and in
+   the body font so it never competes with the display-face brand name. */
+.tm {
+  font-family: var(--font-body);
+  font-size: 0.42em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-left: 2px;
+  opacity: 0.72;
+}
+
+/* Read-only total shown beside quantity x rate inputs (expense form). */
+.calc-total {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--gold-2);
+}
+.calc-total span {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+}
+
+/* ===================== v4 premium utilities ===================== */
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.icon-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: inline-grid; place-items: center;
+  border: 1px solid var(--line); color: var(--gold-2); background: transparent;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.icon-btn:hover { background: var(--leaf-soft); color: #F2DE9B; transform: translateY(-2px); }
+
+.skeleton {
+  position: relative; overflow: hidden;
+  background: #17140D; border: 1px solid var(--line-soft); border-radius: var(--radius);
+}
+.skeleton::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(228, 199, 102, 0.08) 50%, transparent 70%);
+  animation: shimmer 1.4s infinite;
+  transform: translateX(-100%);
+}
+@keyframes shimmer { to { transform: translateX(100%); } }
+
+.section-label {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-size: 0.74rem; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; color: var(--clay);
+  margin-bottom: 12px;
+}
+.section-label::before { content: ''; width: 34px; height: 1.5px; background: var(--gold-grad); }
+
+/* =====================================================================
+   v5 — shared components
+   ===================================================================== */
+
+/* ---------- uniform photo frame ----------
+   Every product photo is a 4:3 1200x900 JPEG built to hold the whole product
+   inside the frame (see tools/build-images.py), so one frame fits all of them.
+
+   `contain`, not `cover`: cover would crop whatever does not match 4:3, which is
+   The shipped product photos are all normalised to 1200x900 (4:3), the same
+   ratio as this frame — so `cover` fills the card edge-to-edge with no visible
+   backdrop and no awkward cropping. Bright photos (like the curd bowl) no
+   longer float on a dark letterbox. For a genuinely odd-ratio upload that must
+   stay uncropped, add `media--contain` to the element. */
+.media {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 100% at 50% 45%, #1B170F 0%, #0E0C07 100%);
+}
+.media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.5s ease;
+}
+/* Opt-out for uploads that should never be cropped. */
+.media--contain img { object-fit: contain; }
+/* Gentle zoom when the whole card is hovered. */
+.pcard:hover .media img,
+.prev-card:hover .media img { transform: scale(1.05); }
+/* Scrim only along the very bottom — a radial darkener would ring a contained
+   subject instead of grading a full-bleed photo. */
+.media::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 34%;
+  pointer-events: none;
+  background: linear-gradient(0deg, rgba(9, 8, 5, 0.5) 0%, transparent 100%);
+}
+.media-wide { aspect-ratio: 16 / 9; }
+.media-square { aspect-ratio: 1 / 1; }
+
+/* ---------- link cards (social, contact, quick actions) ----------
+   One card for every outbound link on the site — Instagram, YouTube, WhatsApp,
+   phone, email, map — so they read as a set instead of as loose icons and
+   emoji tiles. Give the element an `is-*` class to swap the accent colour. */
+.link-card {
+  --accent: var(--gold);
+  --glow: rgba(201, 162, 39, 0.18);
+
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 17px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, rgba(228, 199, 102, 0.05), rgba(228, 199, 102, 0)), var(--surface);
+  color: inherit;
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.link-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0;
+  background: radial-gradient(420px 150px at 8% 0%, var(--glow), transparent 70%);
+  transition: opacity 0.25s ease;
+}
+.link-card:hover,
+.link-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+  color: inherit;
+}
+.link-card:hover::before,
+.link-card:focus-visible::before { opacity: 1; }
+
+.link-card .lc-ic {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line-soft);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+}
+.link-card:hover .lc-ic {
+  background: var(--glow);
+  border-color: var(--accent);
+  transform: scale(1.06);
+}
+.link-card .lc-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.link-card .lc-handle {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.06rem;
+  color: var(--ivory);
+  line-height: 1.25;
+  margin-top: 2px;
+  word-break: break-word;
+}
+.link-card:hover .lc-handle { color: var(--gold-2); }
+.link-card .lc-note {
+  display: block;
+  font-size: 0.84rem;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+.link-card > span:nth-child(2) { min-width: 0; }
+.link-card .lc-go {
+  color: var(--accent);
+  opacity: 0.55;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  flex-shrink: 0;
+}
+.link-card:hover .lc-go { opacity: 1; transform: translate(3px, -3px); }
+
+.link-card.is-instagram { --accent: #E8688F; --glow: rgba(228, 64, 95, 0.20); }
+.link-card.is-youtube   { --accent: #FF5A5A; --glow: rgba(255, 61, 61, 0.18); }
+.link-card.is-whatsapp  { --accent: #45D983; --glow: rgba(37, 211, 102, 0.18); }
+
+.link-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  gap: 14px;
+}
+
+/* compact variant — footer column, drawer */
+.link-card.compact { padding: 12px 14px; gap: 12px; border-radius: 13px; }
+.link-card.compact .lc-ic { width: 38px; height: 38px; border-radius: 11px; }
+.link-card.compact .lc-handle { font-size: 0.95rem; }
+.link-card.compact .lc-note { display: none; }
+
+@media (max-width: 420px) {
+  .link-card { padding: 14px; gap: 12px; }
+  .link-card .lc-note { display: none; }
+}
+
+/* ---------- section rhythm ---------- */
+.section-head.center { margin-inline: auto; text-align: center; }
+.section-head.center .section-label::before { display: none; }
+
+/* ---------- auth screens (customer login/register, management login) ---------- */
+.auth-shell { display: grid; place-items: center; padding: 60px 0 20px; }
+.auth-card {
+  width: min(480px, 100%);
+  padding: 34px 32px 30px;
+  position: relative;
+  border-color: var(--line);
+}
+.auth-card::before {
+  content: '';
+  position: absolute; inset: 0 0 auto 0; height: 2px;
+  background: var(--gold-grad);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.auth-card.wide { width: min(560px, 100%); }
+.auth-head { text-align: center; margin-bottom: 26px; }
+.auth-mark {
+  width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 16px;
+  filter: drop-shadow(0 8px 22px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 20px rgba(201, 162, 39, 0.34));
+}
+.auth-head h1 { font-size: 1.7rem; margin-bottom: 6px; }
+.auth-head p { color: var(--muted); font-size: 0.94rem; }
+.auth-foot {
+  margin-top: 20px; padding-top: 16px;
+  border-top: 1px dashed var(--line-soft);
+  text-align: center; font-size: 0.9rem; color: var(--muted);
+}
+.auth-foot + .auth-foot { border-top: none; padding-top: 4px; margin-top: 4px; font-size: 0.82rem; }
+
+/* ===================== v6 responsive & polish hardening ===================== */
+
+/* phones: tighter type scale + safer paddings */
+@media (max-width: 480px) {
+  .page-head h1 { font-size: clamp(1.7rem, 8vw, 2.2rem); }
+  h2 { font-size: clamp(1.45rem, 6.4vw, 1.9rem); }
+  .container { width: 92%; }
+  .modal { padding: 20px 18px; border-radius: 14px; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .chips { gap: 8px; }
+  .btn { padding: 11px 18px; }
+  .btn-sm { padding: 8px 13px; }
+}
+
+/* keep khata tables usable on narrow screens without squashing columns */
+@media (max-width: 640px) {
+  .tbl-wrap table, .khata table { min-width: 560px; }
+  .toasts-safe { width: calc(100vw - 24px); }
+}
+
+/* comfortable focus rings everywhere (keyboard users) */
+a:focus-visible, button:focus-visible, .btn:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* the sidebar frame itself never scrolls — its nav list does (see above) */
+.mgmt-side { overflow: hidden; }
+
+/* iOS momentum + no accidental horizontal wiggle on the whole page */
+html, body { overflow-x: clip; }

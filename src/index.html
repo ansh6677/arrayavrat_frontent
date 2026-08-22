@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Aryavart Dairy Farm — Pure A2. Pure Health. | Muzaffarpur</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0D0C09">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Aryavart Dairy Farm, Muzaffarpur — Unmixed, Unprocessed, Unmatched. Pure farm-fresh A2 milk, dahi, paneer, desi ghee and chaach delivered within 2 hours of milking.">
+
+  <link rel="icon" type="image/png" sizes="96x96" href="assets/brand/logo-icon.png">
+  <link rel="apple-touch-icon" href="assets/brand/logo-mark.png">
+
+  <!-- social share card -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Aryavart Dairy Farm">
+  <meta property="og:title" content="Aryavart Dairy Farm — Pure A2. Pure Health.">
+  <meta property="og:description" content="Farm-fresh A2 milk, curd, paneer, bilona ghee and buttermilk from Muzaffarpur — at your door within 2 hours of milking.">
+  <meta property="og:image" content="assets/photos/hero-milk.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Mukta:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- the first hero frame is above the fold on every visit -->
+  <link rel="preload" as="image" href="assets/photos/hero-farm.jpg">
+</head>
+<body>
+  <app-root>
+    <style>
+      .adf-splash {
+        position: fixed; inset: 0; z-index: 9999;
+        background: radial-gradient(720px 420px at 50% 34%, #171309, #0B0A06 70%);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 22px; font-family: Georgia, 'Times New Roman', serif;
+      }
+      .adf-splash .ring {
+        position: relative; width: 132px; height: 132px; border-radius: 50%;
+        display: grid; place-items: center;
+      }
+      .adf-splash .ring::before {
+        content: ''; position: absolute; inset: -9px; border-radius: 50%;
+        border: 2.5px solid rgba(228, 199, 102, 0.16);
+        border-top-color: #E4C766;
+        animation: adfspin 1.05s linear infinite;
+      }
+      .adf-splash img {
+        width: 132px; height: 132px; border-radius: 50%;
+        border: 2px solid #C9A227;
+        box-shadow: 0 0 44px rgba(201, 162, 39, 0.35), 0 18px 40px rgba(0, 0, 0, 0.7);
+        animation: adfpulse 2.2s ease-in-out infinite;
+      }
+      .adf-splash b {
+        color: #E4C766; font-size: 1.35rem; letter-spacing: 0.24em; text-transform: uppercase;
+        text-align: center;
+      }
+      .adf-splash span { color: #8F8668; font-size: 0.78rem; letter-spacing: 0.34em; text-transform: uppercase; }
+      @keyframes adfspin { to { transform: rotate(360deg); } }
+      @keyframes adfpulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+    </style>
+    <div class="adf-splash">
+      <div class="ring"><img src="assets/brand/logo-mark.png" alt="Aryavart Dairy Farm" /></div>
+      <b>Aryavart Dairy Farm</b>
+      <span>Pure A2 &nbsp;·&nbsp; Pure Health</span>
+    </div>
+  </app-root>
+</body>
+</html>
