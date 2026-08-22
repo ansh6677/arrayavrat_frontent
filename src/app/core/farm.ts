@@ -1,5 +1,5 @@
 /** Backend API base URL — set your server URL in production. */
-export const API_URL = 'https://arryavrat-backend.onrender.com//api';
+export const API_URL = 'https://arryavrat-backend.onrender.com/api';
 
 /** All brand, contact and imagery constants in one place. */
 export const FARM = {
