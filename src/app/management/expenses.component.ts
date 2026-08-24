@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { ApiService } from '../core/api.service';
+import { saveBlob } from '../core/download';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
@@ -40,6 +41,11 @@ import { IconComponent } from '../shared/icon.component';
           @if (loading) { <span class="spinner"></span> } Apply
         </button>
         @if (auth.isFullAdmin()) {
+          <button class="btn btn-outline" (click)="exportCsv()" [disabled]="exporting"
+                  title="Download this range as CSV">
+            @if (exporting) { <span class="spinner"></span> } @else { <app-icon name="download" [size]="15" /> }
+            Export CSV
+          </button>
           <button class="btn btn-primary push" (click)="openAdd()">
             <app-icon name="plus" [size]="15" [stroke]="2.4" /> Add expense
           </button>
@@ -220,6 +226,18 @@ export class ExpensesComponent implements OnInit {
     const rate = this.form.unitAmount || 0;
     return Math.round(qty * rate * 100) / 100;
   }
+
+  exporting = false;
+
+  exportCsv() {
+    if (this.exporting) return;
+    this.exporting = true;
+    this.api.downloadCsv('expenses.csv', { from: this.from, to: this.to }).subscribe({
+      next: blob => { saveBlob(blob, `expenses_${this.from}_to_${this.to}.csv`); this.exporting = false; },
+      error: () => (this.exporting = false)
+    });
+  }
+
 
   save() {
     this.modalError = '';

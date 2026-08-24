@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 
 import { API_URL } from './farm';
-import { Bill, DailyEntry, DayDetail, Expense, Payment, Product, Stats, UserInfo } from './models';
+import { Bill, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, Payment, Product, Stats, UserInfo } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -160,6 +160,36 @@ export class ApiService {
   }
 
   // ---------------- Admin: stats ----------------
+
+  // ---------------- extra (walk-in) sales ----------------
+
+  addExtraSale(data: Partial<ExtraSale>) {
+    return this.http.post<ExtraSale>(`${API_URL}/admin/extra-sales`, data);
+  }
+
+  getExtraSales(from?: string, to?: string) {
+    let params = new HttpParams();
+    if (from) params = params.set('from', from);
+    if (to) params = params.set('to', to);
+    return this.http.get<ExtraSale[]>(`${API_URL}/admin/extra-sales`, { params });
+  }
+
+  getExtraSummary() {
+    return this.http.get<ExtraSummary>(`${API_URL}/admin/extra-sales/summary`);
+  }
+
+  deleteExtraSale(id: string) {
+    return this.http.delete<{ status: string }>(`${API_URL}/admin/extra-sales/${id}`);
+  }
+
+  /** Any register as a CSV blob — the caller saves it with saveBlob(). */
+  downloadCsv(file: string, params?: Record<string, string | undefined>) {
+    let hp = new HttpParams();
+    for (const [k, v] of Object.entries(params || {})) {
+      if (v) hp = hp.set(k, v);
+    }
+    return this.http.get(`${API_URL}/admin/export/${file}`, { params: hp, responseType: 'blob' });
+  }
 
   getStats(month?: string) {
     let params = new HttpParams();

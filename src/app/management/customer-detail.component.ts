@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { ApiService } from '../core/api.service';
+import { saveBlob } from '../core/download';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
@@ -70,6 +71,11 @@ import { IconComponent } from '../shared/icon.component';
             <label for="to">To date</label>
             <input id="to" type="date" name="to" [(ngModel)]="to" />
           </div>
+          <button class="btn btn-outline" (click)="exportBillCsv()" [disabled]="exportingCsv"
+                  title="This bill as a CSV (opens in Excel)">
+            @if (exportingCsv) { <span class="spinner"></span> } @else { <app-icon name="download" [size]="15" /> }
+            CSV
+          </button>
           <button class="btn btn-outline" (click)="loadBill()" [disabled]="loading">
             @if (loading) { <span class="spinner"></span> } View bill
           </button>
@@ -457,6 +463,27 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   // ---------------- Daily entry ----------------
+
+  exportingCsv = false;
+
+  /** The whole statement — purchases, payments, balances — as a spreadsheet. */
+  exportBillCsv() {
+    if (this.exportingCsv) return;
+    this.exportingCsv = true;
+    this.api.downloadCsv('customer-bill.csv', {
+      customerId: this.customerId, from: this.from, to: this.to
+    }).subscribe({
+      next: blob => {
+        saveBlob(blob, `bill_${this.customer?.name || 'customer'}_${this.from}_to_${this.to}.csv`);
+        this.exportingCsv = false;
+      },
+      error: () => {
+        this.exportingCsv = false;
+        this.toast.error('Could not export the CSV.');
+      }
+    });
+  }
+
 
   /** Closes the sheet; in quick-entry mode this also returns to the customer grid. */
   closeEntry() {

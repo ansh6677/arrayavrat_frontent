@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { ApiService } from '../core/api.service';
+import { saveBlob } from '../core/download';
 import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
 import { Product, UserInfo } from '../core/models';
@@ -24,7 +25,12 @@ import { IconComponent } from '../shared/icon.component';
           <input id="q" name="q" [(ngModel)]="q" placeholder="Search by name or phone…" />
         </div>
         @if (auth.isFullAdmin()) {
-          <button class="btn btn-primary" (click)="openAdd()">
+          <button class="btn btn-outline" (click)="exportCsv()" [disabled]="exporting"
+                title="Download the customer register as CSV">
+          @if (exporting) { <span class="spinner"></span> } @else { <app-icon name="download" [size]="15" /> }
+          Export CSV
+        </button>
+        <button class="btn btn-primary" (click)="openAdd()">
             <app-icon name="plus" [size]="15" [stroke]="2.4" /> Add customer
           </button>
         }
@@ -164,7 +170,7 @@ import { IconComponent } from '../shared/icon.component';
     .src-page { color: #8FC7E8; border: 1px solid rgba(143, 199, 232, 0.4); }
     .row-actions { white-space: nowrap; }
     .qe-btn {
-      width: 30px; height: 30px; border-radius: 50%; margin-right: 8px; cursor: pointer;
+      width: 36px; height: 36px; border-radius: 50%; margin-right: 8px; cursor: pointer;
       border: 1.5px solid var(--gold); background: transparent; color: var(--gold-2);
       display: inline-grid; place-items: center; vertical-align: middle;
       transition: background 0.15s ease, transform 0.15s ease;
@@ -246,6 +252,17 @@ export class CustomersComponent implements OnInit {
   setPreferredQty(id: string, value: number) {
     const qty = Math.round((Number(value) || 0) * 100) / 100;
     this.form.preferredQuantities[id] = qty > 0 ? qty : 1;
+  }
+
+  exporting = false;
+
+  exportCsv() {
+    if (this.exporting) return;
+    this.exporting = true;
+    this.api.downloadCsv('customers.csv').subscribe({
+      next: blob => { saveBlob(blob, 'customers.csv'); this.exporting = false; },
+      error: () => (this.exporting = false)
+    });
   }
 
   /** The grid's small + icon: opens the customer with the entry sheet ready. */

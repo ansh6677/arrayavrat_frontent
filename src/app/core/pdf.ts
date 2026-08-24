@@ -260,7 +260,7 @@ async function buildBillPdf(bill: Bill) {
   // ============ totals + outstanding + signature ============
   // The scan-and-pay box on the left is the tallest thing here, so the
   // page-break check reserves enough room for it.
-  if (fy > H - 264) {
+  if (fy > H - 280) {
     doc.addPage();
     fy = 64;
   }
@@ -343,7 +343,9 @@ async function buildBillPdf(bill: Bill) {
   // signature block (left)
   // The scan-and-pay box now owns the left column, so the signatory block
   // moves under the outstanding pill on the right — the usual invoice corner.
-  const sigY = pillY + 108;
+  // Pill is 44pt tall; 24pt of clear air before "For …", then the usual
+  // signature stack — nothing touches the pill any more.
+  const sigY = pillY + 44 + 24 + 58;
   doc.setTextColor(INK[0], INK[1], INK[2]);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);

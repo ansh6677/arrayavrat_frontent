@@ -149,12 +149,14 @@ import { IconComponent } from './icon.component';
     </div>
 
     <div class="mt no-print bill-actions">
-      <button class="btn btn-primary" (click)="pdf()">
+      <button class="btn btn-primary" (click)="pdf()" [disabled]="pdfBusy">
+        @if (pdfBusy) { <span class="spinner"></span> }
         <app-icon name="download" [size]="16" /> Download PDF
       </button>
-      <button class="btn btn-wa" (click)="shareOnWhatsApp()"
+      <button class="btn btn-wa" (click)="shareOnWhatsApp()" [disabled]="shareBusy"
               [title]="'Send this bill summary to ' + bill.phone">
-        <app-icon name="whatsapp" [size]="17" /> Share on WhatsApp
+        @if (shareBusy) { <span class="spinner"></span> } @else { <app-icon name="whatsapp" [size]="17" /> }
+        Share on WhatsApp
       </button>
     </div>
   `,
@@ -176,6 +178,10 @@ import { IconComponent } from './icon.component';
 export class BillViewComponent {
   private toast = inject(ToastService);
 
+  /** True while the PDF is being generated for download / share. */
+  pdfBusy = false;
+  shareBusy = false;
+
   @Input({ required: true }) bill!: Bill;
   @Input() canManage = false;
   @Output() removeEntry = new EventEmitter<DailyEntry>();
@@ -183,8 +189,23 @@ export class BillViewComponent {
 
   farm = FARM;
 
-  pdf() {
-    downloadBillPdf(this.bill);
+  async pdf() {
+    if (this.pdfBusy) return;
+    this.pdfBusy = true;
+    try {
+      await downloadBillPdf(this.bill);
+    } finally {
+      this.pdfBusy = false;
+    }
+  }
+
+  /** dd-mm-yyyy of the day before an ISO date — labels the previous-balance cutoff. */
+  dayBefore(iso: string): string {
+    const d = new Date(iso);
+    d.setDate(d.getDate() - 1);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}-${mm}-${d.getFullYear()}`;
   }
 
   /** dd-mm-yyyy of the day before an ISO date — labels the previous-balance cutoff. */
@@ -204,6 +225,9 @@ export class BillViewComponent {
    * a note to attach the file.
    */
   async shareOnWhatsApp() {
+    if (this.shareBusy) return;
+    this.shareBusy = true;
+    try {
     const b = this.bill;
 
     try {
@@ -253,5 +277,8 @@ export class BillViewComponent {
 
     const win = window.open(url, '_blank');
     if (!win) window.location.href = url;         // popup blocked — last resort
+    } finally {
+      this.shareBusy = false;
+    }
   }
 }

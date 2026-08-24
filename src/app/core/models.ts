@@ -118,6 +118,8 @@ export interface DayPoint {
   label: string;
   sales: number;
   expenses: number;
+  /** Walk-in slice of that day's sales (already inside `sales`). */
+  extra: number;
 }
 
 export interface MonthOption {
@@ -153,8 +155,45 @@ export interface DayDetail {
   profit: number;
   entryCount: number;
   expenseCount: number;
+  /** Walk-in counter sales on this day — included in the sales figure. */
+  extraTotal: number;
+  extraCount: number;
   entries: DayEntryRow[];
   expenseRows: DayExpenseRow[];
+  extraRows: DayExtraRow[];
+}
+
+export interface DayExtraRow {
+  customerName: string;
+  productName: string;
+  quantity: number;
+  unit?: string;
+  rate: number;
+  total: number;
+  paymentMode?: string;
+}
+
+/** A walk-in / counter sale — the occasional offline customer. */
+export interface ExtraSale {
+  id?: string;
+  customerName?: string;
+  productId?: string | null;
+  productName: string;
+  unit?: string;
+  quantity: number;
+  rate: number;
+  total: number;
+  saleDate: string;
+  paymentMode?: string;
+  note?: string;
+}
+
+export interface ExtraSummary {
+  todayTotal: number;
+  monthTotal: number;
+  allTimeTotal: number;
+  monthCount: number;
+  allCount: number;
 }
 
 export interface Stats {
@@ -163,6 +202,10 @@ export interface Stats {
   todaySales: number;
   monthSales: number;
   totalSales: number;
+  /** Walk-in counter sales — already included in the figures above. */
+  todayExtraSales: number;
+  monthExtraSales: number;
+  totalExtraSales: number;
   totalPaymentsReceived: number;
   totalOutstanding: number;
   todayExpenses: number;

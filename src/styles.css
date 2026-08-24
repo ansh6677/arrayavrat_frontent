@@ -276,6 +276,7 @@ table.tbl tr:hover td { background: rgba(228, 199, 102, 0.05); }
 .stat.stat-gold .stat-value { color: var(--gold-2); }
 .stat.stat-green .stat-value { color: var(--ok); }
 .stat.stat-red .stat-value { color: var(--danger); }
+.stat .stat-sub, .stat .stat-hint, .stat .stat-note { font-size: 0.76rem; color: var(--muted); margin-top: 3px; }
 
 /* ---------- khata (bill) ---------- */
 .khata { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; }
@@ -488,6 +489,60 @@ table.tbl tr:hover td { background: rgba(228, 199, 102, 0.05); }
   .print-area * { color: #1B1810 !important; background: transparent !important; border-color: #B8AE93 !important; text-shadow: none !important; }
   .print-area .khata-head h3, .print-area .t-value { color: #6B5310 !important; }
   .no-print { display: none !important; }
+}
+
+/* ---------- modern polish: touch, motion, affordance ---------- */
+
+/* Gold text selection keeps the brand feel even while copying. */
+::selection { background: rgba(201, 162, 39, 0.35); color: var(--ivory); }
+
+/* A visible—but calm—keyboard focus ring on every interactive element. */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Buttons press down a hair — small, satisfying, everywhere. */
+.btn:active { transform: translateY(1px); }
+
+/* The number spinners look dated next to the quantity chips — hide them. */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+
+/* Scrollable tables: a thin gold scrollbar plus a soft fade on the right edge
+   so a phone user can tell there are more columns to swipe to. */
+.tbl-wrap { position: relative; scrollbar-width: thin; scrollbar-color: rgba(228, 199, 102, 0.35) transparent; }
+.tbl-wrap::-webkit-scrollbar { height: 7px; }
+.tbl-wrap::-webkit-scrollbar-track { background: transparent; }
+.tbl-wrap::-webkit-scrollbar-thumb { background: rgba(228, 199, 102, 0.3); border-radius: 4px; }
+
+@media (max-width: 700px) {
+  .tbl-wrap::after {
+    content: '';
+    position: absolute; top: 0; right: 0; bottom: 7px; width: 26px;
+    background: linear-gradient(90deg, transparent, rgba(10, 9, 6, 0.55));
+    pointer-events: none;
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+}
+
+@media (max-width: 640px) {
+  /* 16px inputs stop iOS from zooming the page on focus. */
+  input, select, textarea { font-size: 16px; }
+
+  /* Action rows become thumb-sized: buttons share the row edge to edge. */
+  .toolbar .btn { flex: 1 1 auto; justify-content: center; min-height: 42px; }
+  .toolbar .field { flex: 1 1 100%; }
+
+  /* Modals breathe on small screens and never trap their own scroll. */
+  .modal { max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; }
+  .modal-actions { padding-bottom: max(0px, env(safe-area-inset-bottom)); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
 }
 
 /* ---------- responsive ---------- */

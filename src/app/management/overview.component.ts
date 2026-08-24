@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 import { ApiService } from '../core/api.service';
+import { saveBlob } from '../core/download';
 import { AuthService } from '../core/auth.service';
 import { productPhoto } from '../core/farm';
 import { DailyEntry, DayDetail, DayPoint, Stats } from '../core/models';
@@ -19,14 +20,21 @@ import { IconComponent } from '../shared/icon.component';
         <h2>Dashboard</h2>
         <p class="mgmt-sub">Today's sales, product-wise performance, expenses and outstanding — all at a glance.</p>
       </div>
-      <label class="month-filter">
-        <span>Showing</span>
-        <select [(ngModel)]="month" (ngModelChange)="applyMonth()" aria-label="Select month">
-          @for (m of monthOptions(); track m.value) {
-            <option [value]="m.value">{{ m.label }}</option>
-          }
-        </select>
-      </label>
+      <div class="dash-tools">
+        <label class="month-filter">
+          <span>Showing</span>
+          <select [(ngModel)]="month" (ngModelChange)="applyMonth()" aria-label="Select month">
+            @for (m of monthOptions(); track m.value) {
+              <option [value]="m.value">{{ m.label }}</option>
+            }
+          </select>
+        </label>
+        <button class="btn btn-outline btn-sm" (click)="exportMonth()" [disabled]="exporting"
+                title="Day-wise CSV report of this month">
+          @if (exporting) { <span class="spinner"></span> } @else { <app-icon name="download" [size]="14" /> }
+          Month CSV
+        </button>
+      </div>
     </div>
 
     @if (loading) {
@@ -47,6 +55,11 @@ import { IconComponent } from '../shared/icon.component';
         <div class="stat">
           <div class="stat-label">{{ stats.monthLabel }} sales</div>
           <div class="stat-value">₹{{ stats.monthSales | number: '1.0-0' }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">{{ stats.monthLabel }} walk-in sales</div>
+          <div class="stat-value">₹{{ stats.monthExtraSales | number: '1.0-2' }}</div>
+          <div class="stat-hint">Extra Sells counter · today ₹{{ stats.todayExtraSales | number: '1.0-2' }}</div>
         </div>
         <div class="stat">
           <div class="stat-label">{{ stats.monthLabel }} expenses</div>
@@ -98,6 +111,7 @@ import { IconComponent } from '../shared/icon.component';
           <h3>{{ stats.monthLabel }} — sales vs expenses</h3>
           <div class="legend">
             <span><i class="sw sw-sale"></i> Sales</span>
+            <span><i class="sw sw-extra"></i> Walk-in</span>
             <span><i class="sw sw-exp"></i> Expenses</span>
           </div>
         </div>
@@ -108,10 +122,11 @@ import { IconComponent } from '../shared/icon.component';
           <div class="day-chart">
             @for (d of stats.days; track d.date) {
               <button type="button" class="day-col" (click)="openDay(d)"
-                      [title]="d.label + ' — sales ₹' + d.sales + ', expenses ₹' + d.expenses"
+                      [title]="d.label + ' — sales ₹' + d.sales + ' (walk-in ₹' + d.extra + '), expenses ₹' + d.expenses"
                       [attr.aria-label]="'View breakdown for ' + d.label">
                 <span class="stack">
                   <i class="b b-sale" [style.height.%]="barHeight(d.sales)"></i>
+                  <i class="b b-extra" [style.height.%]="barHeight(d.extra)"></i>
                   <i class="b b-exp" [style.height.%]="barHeight(d.expenses)"></i>
                 </span>
                 <span class="day-num">{{ d.label.slice(0, 2) }}</span>
@@ -249,6 +264,29 @@ import { IconComponent } from '../shared/icon.component';
               </div>
             }
 
+            @if (day.extraCount > 0) {
+              <h4 class="day-h">Walk-in sales (Extra Sells)</h4>
+              <div class="tbl-wrap">
+                <table class="tbl" style="min-width: 460px;">
+                  <thead>
+                    <tr><th>Customer</th><th>Item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Total (₹)</th><th>Mode</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (r of day.extraRows; track $index) {
+                      <tr>
+                        <td>{{ r.customerName }}</td>
+                        <td>{{ r.productName }}</td>
+                        <td class="num">{{ r.quantity | number: '1.0-2' }} {{ r.unit }}</td>
+                        <td class="num">{{ r.rate | number: '1.0-2' }}</td>
+                        <td class="num">{{ r.total | number: '1.0-2' }}</td>
+                        <td>{{ r.paymentMode }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+
             <h4 class="day-h">Expenses</h4>
             @if (day.expenseRows.length === 0) {
               <p class="muted">No expenses recorded on this day.</p>
@@ -283,7 +321,9 @@ import { IconComponent } from '../shared/icon.component';
   `,
   styles: [`
     .dash-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .dash-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .month-filter { display: flex; align-items: center; gap: 10px; font-size: 0.84rem; color: var(--muted); }
+    .stat-hint { font-size: 0.72rem; color: var(--muted); margin-top: 3px; }
     .month-filter select { width: auto; min-width: 172px; padding: 9px 14px; border-radius: 999px; font-weight: 600; }
     .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
     .panel-head h3 { margin: 0; }
@@ -291,6 +331,7 @@ import { IconComponent } from '../shared/icon.component';
     .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
     .sw-sale { background: var(--gold-grad); }
+    .sw-extra { background: #4FA3A5; }
     .sw-exp { background: #B4553F; }
 
     /* Two thin bars per day: sales and expenses, side by side and clickable. */
@@ -305,6 +346,7 @@ import { IconComponent } from '../shared/icon.component';
     .stack { display: flex; align-items: flex-end; gap: 2px; height: 150px; width: 100%; justify-content: center; }
     .b { width: 7px; border-radius: 3px 3px 0 0; min-height: 2px; transition: opacity 0.15s ease; }
     .b-sale { background: var(--gold-grad); }
+    .b-extra { background: #4FA3A5; }
     .b-exp { background: #B4553F; }
     .day-col:hover .b { opacity: 0.85; }
     .day-num { font-size: 0.62rem; color: var(--muted); }
@@ -389,6 +431,19 @@ export class OverviewComponent implements OnInit {
 
   applyMonth() {
     this.load();
+  }
+
+  exporting = false;
+
+  /** Day-wise CSV of the selected month — sales, walk-ins, expenses, net. */
+  exportMonth() {
+    if (this.exporting) return;
+    this.exporting = true;
+    const m = this.month || this.stats?.month || '';
+    this.api.downloadCsv('month-report.csv', { month: m }).subscribe({
+      next: blob => { saveBlob(blob, `month-report_${m || 'current'}.csv`); this.exporting = false; },
+      error: () => (this.exporting = false)
+    });
   }
 
   /** Dropdown options stay available while a reload is in flight. */

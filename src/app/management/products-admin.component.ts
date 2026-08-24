@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { ApiService } from '../core/api.service';
+import { saveBlob } from '../core/download';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
@@ -21,13 +22,18 @@ import { ProductImage } from '../shared/product-image';
     <p class="mgmt-sub">Update prices, photos and availability here — changes reflect instantly on the website and in new entries.</p>
 
     <div class="panel">
-      @if (auth.isFullAdmin()) {
-        <div class="toolbar">
+      <div class="toolbar">
+        <button class="btn btn-outline" (click)="exportCsv()" [disabled]="exporting"
+                title="Download the product list as CSV">
+          @if (exporting) { <span class="spinner"></span> } @else { <app-icon name="download" [size]="15" /> }
+          Export CSV
+        </button>
+        @if (auth.isFullAdmin()) {
           <button class="btn btn-primary push" (click)="startAdd()">
             <app-icon name="plus" [size]="15" [stroke]="2.4" /> Add product
           </button>
-        </div>
-      }
+        }
+      </div>
 
       @if (error && !formOpen) { <div class="alert alert-error">{{ error }}</div> }
 
@@ -279,6 +285,17 @@ export class ProductsAdminComponent implements OnInit {
     });
   }
 
+  exporting = false;
+
+  exportCsv() {
+    if (this.exporting) return;
+    this.exporting = true;
+    this.api.downloadCsv('products.csv').subscribe({
+      next: blob => { saveBlob(blob, 'products.csv'); this.exporting = false; },
+      error: () => (this.exporting = false)
+    });
+  }
+
   startAdd() {
     this.editing = null;
     this.form = this.blank();
@@ -381,6 +398,7 @@ export class ProductsAdminComponent implements OnInit {
       error: err => this.toast.error(err?.error?.error || 'Could not update the position.')
     });
   }
+
 
 
   save() {
