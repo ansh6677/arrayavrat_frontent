@@ -224,6 +224,13 @@ export class BillViewComponent {
       if ((e as { name?: string })?.name === 'AbortError') return;   // user closed the sheet
       /* fall through to the download-and-chat path */
     }
+    // No detail dump in the chat — everything lives in the PDF. Just a short
+    // courtesy line; the admin attaches the freshly downloaded file.
+    const lines = [
+      `Namaste ${b.customerName} ji! Your ${FARM.name} bill for ` +
+      `${niceDate(b.from)} to ${niceDate(b.to)} is attached as a PDF. Thank you!`
+    ];
+    this.toast.info('Bill PDF downloaded ✓ — WhatsApp opened. Attach the PDF from Downloads and send.', 6500);
 
     // Fallback: save the PDF, then open the customer's chat with the summary.
     try {
@@ -238,9 +245,6 @@ export class BillViewComponent {
       `${niceDate(b.from)} to ${niceDate(b.to)} is attached as a PDF. Thank you!`
     ];
     this.toast.info('Bill PDF downloaded ✓ — WhatsApp opened. Attach the PDF from Downloads and send.', 6500);
-
-    lines.push('');
-    lines.push('The detailed PDF bill has just been downloaded on this device — please attach it here.');
 
     // Indian numbers are stored as 10 digits; WhatsApp needs the country code.
     const digits = String(b.phone || '').replace(/\D/g, '');

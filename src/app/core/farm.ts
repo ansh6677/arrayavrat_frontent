@@ -53,6 +53,9 @@ export const FARM = {
 
   email: 'aryavardairyfarm@gmail.com',
   fssai: '20426061000097',
+  /** UPI payment details printed on every bill (the scan-and-pay box). */
+  upiId: '8789816971@ptsbi',
+  upiName: 'Sourabh Kumar Singh',
   founderInstagram: 'https://www.instagram.com/sourabh_ms_singh?igsh=MTg3dXVoMTZwaGg0ZA==',
   address:
     'Jiyalal Rai Road, Near New Apartment, Ahiyapur Chowk – Safalta Coaching, Zero Mile, Muzaffarpur, Bihar, India – 842002',

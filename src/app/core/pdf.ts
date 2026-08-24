@@ -46,6 +46,26 @@ async function loadLogo(): Promise<string | null> {
   }
 }
 
+let upiQrCache: string | null = null;
+
+/** The Paytm UPI QR card printed in the bill's scan-and-pay box. */
+async function loadUpiQr(): Promise<string | null> {
+  if (upiQrCache) return upiQrCache;
+  try {
+    const res = await fetch('assets/brand/upi-qr.jpg');
+    const blob = await res.blob();
+    upiQrCache = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    return upiQrCache;
+  } catch {
+    return null;
+  }
+}
+
 let signatureCache: string | null = null;
 
 /** Founder's scanned signature (transparent PNG) for the authorised-signatory block. */
@@ -90,6 +110,7 @@ export async function billPdfFile(bill: Bill): Promise<File> {
 async function buildBillPdf(bill: Bill) {
   const logo = await loadLogo();
   const signature = await loadSignature();
+  const upiQr = await loadUpiQr();
 
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
@@ -237,9 +258,40 @@ async function buildBillPdf(bill: Bill) {
   }
 
   // ============ totals + outstanding + signature ============
-  if (fy > H - 210) {
+  // The scan-and-pay box on the left is the tallest thing here, so the
+  // page-break check reserves enough room for it.
+  if (fy > H - 264) {
     doc.addPage();
     fy = 64;
+  }
+
+  // ---- scan & pay (UPI) — sits level with the totals, on the left ----
+  if (upiQr) {
+    const qx = 40;
+    const qw = 180;
+    const qImgW = 118;
+    const qImgH = Math.round((qImgW * 615) / 479);   // the card's own ratio
+    const qh = qImgH + 60;
+
+    doc.setFillColor(253, 250, 240);
+    doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
+    doc.setLineWidth(1);
+    doc.roundedRect(qx, fy - 8, qw, qh, 10, 10, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(INK[0], INK[1], INK[2]);
+    doc.text('SCAN & PAY VIA UPI', qx + qw / 2, fy + 5, { align: 'center' });
+
+    doc.addImage(upiQr, 'JPEG', qx + (qw - qImgW) / 2, fy + 11, qImgW, qImgH);
+
+    doc.setFontSize(8.2);
+    doc.setTextColor(INK[0], INK[1], INK[2]);
+    doc.text(FARM.upiId, qx + qw / 2, fy + 11 + qImgH + 12, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.2);
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    doc.text(FARM.upiName + '  ·  Paytm / any UPI app', qx + qw / 2, fy + 11 + qImgH + 22, { align: 'center' });
   }
 
   const bx = W - 40 - 240;
@@ -289,28 +341,30 @@ async function buildBillPdf(bill: Bill) {
   doc.text(money(bill.outstanding), bx + bw - 14, pillY + 32, { align: 'right' });
 
   // signature block (left)
-  const sigY = pillY + 34;
+  // The scan-and-pay box now owns the left column, so the signatory block
+  // moves under the outstanding pill on the right — the usual invoice corner.
+  const sigY = pillY + 108;
   doc.setTextColor(INK[0], INK[1], INK[2]);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text('For ' + FARM.name, 40, signature ? sigY - 58 : sigY - 24);
+  doc.text('For ' + FARM.name, bx + bw, signature ? sigY - 58 : sigY - 24, { align: 'right' });
   if (signature) {
     try {
       const props = doc.getImageProperties(signature);
       const sw = 118;
       const sh = (props.height / props.width) * sw;
       // ink sits just above the signatory rule
-      doc.addImage(signature, 'PNG', 46, sigY - 8 - sh, sw, sh);
+      doc.addImage(signature, 'PNG', bx + bw - sw, sigY - 8 - sh, sw, sh);
     } catch {
       /* fall back to the plain line */
     }
   }
   doc.setDrawColor(150, 142, 120);
   doc.setLineWidth(0.8);
-  doc.line(40, sigY, 190, sigY);
+  doc.line(bx + bw - 150, sigY, bx + bw, sigY);
   doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
   doc.setFontSize(8.2);
-  doc.text('Authorised Signatory', 40, sigY + 12);
+  doc.text('Authorised Signatory', bx + bw, sigY + 12, { align: 'right' });
 
   // ============ footer (on every page) ============
   const pageCount = doc.getNumberOfPages();
