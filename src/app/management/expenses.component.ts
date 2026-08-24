@@ -52,7 +52,7 @@ import { IconComponent } from '../shared/icon.component';
         <p class="muted">No expenses recorded for this period.</p>
       } @else if (expenses.length > 0) {
         <div class="tbl-wrap">
-          <table class="tbl">
+          <table class="tbl" style="min-width: 640px;">
             <thead>
               <tr>
                 <th>Date</th><th>Category</th><th>Note</th>

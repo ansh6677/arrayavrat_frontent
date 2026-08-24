@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { ApiService } from '../core/api.service';
 import { ConfirmService } from '../core/confirm.service';
@@ -87,11 +87,11 @@ import { IconComponent } from '../shared/icon.component';
 
     <!-- ================= Daily Entry popup ================= -->
     @if (entryOpen) {
-      <div class="modal-back" (click)="entryOpen = false">
+      <div class="modal-back" (click)="closeEntry()">
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-head">
             <h3>Daily entry — {{ customer?.name }}</h3>
-            <button type="button" class="modal-close" (click)="entryOpen = false" aria-label="Close">
+            <button type="button" class="modal-close" (click)="closeEntry()" aria-label="Close">
               <app-icon name="close" [size]="16" [stroke]="2.2" />
             </button>
           </div>
@@ -181,7 +181,7 @@ import { IconComponent } from '../shared/icon.component';
               {{ pickedCount() }} product{{ pickedCount() === 1 ? '' : 's' }} × {{ dayCount() }}
               {{ dayCount() === 1 ? 'day' : 'days' }} · Total: ₹{{ entryTotal() | number: '1.0-2' }}
             </div>
-            <button class="btn btn-ghost" (click)="entryOpen = false">Cancel</button>
+            <button class="btn btn-ghost" (click)="closeEntry()">Cancel</button>
             <button class="btn btn-primary" (click)="saveEntry()" [disabled]="saving">
               @if (saving) { <span class="spinner"></span> } Save entry
             </button>
@@ -271,6 +271,30 @@ import { IconComponent } from '../shared/icon.component';
             </div>
             <div class="field">
               <label>Status</label>
+              <div class="field field-wide">
+                <label>Usual products <span class="hint-inline">pre-ticked in every daily entry</span></label>
+                <div class="pref-grid">
+                  @for (p of products; track p.id) {
+                    <div class="pref">
+                      <label class="pref-main">
+                        <input type="checkbox" [checked]="editForm.preferredProductIds?.includes(p.id!)"
+                               (change)="togglePreferred(p.id!)" />
+                        <span>{{ p.name }}</span>
+                      </label>
+                      @if (editForm.preferredProductIds?.includes(p.id!)) {
+                        <span class="pref-qty">
+                          <input type="number" min="0.5" step="0.5"
+                                 [ngModel]="editForm.preferredQuantities?.[p.id!]"
+                                 [ngModelOptions]="{ standalone: true }"
+                                 (ngModelChange)="setPreferredQty(p.id!, $event)"
+                                 [attr.aria-label]="'Daily quantity of ' + p.name" />
+                          <small>{{ p.unit }}</small>
+                        </span>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
               <select name="cactive" [(ngModel)]="editForm.active">
                 <option [ngValue]="true">Active</option>
                 <option [ngValue]="false">Inactive (login blocked)</option>
@@ -288,6 +312,20 @@ import { IconComponent } from '../shared/icon.component';
     }
   `,
   styles: [`
+    .pref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+    .pref {
+      display: flex; align-items: center; justify-content: space-between; gap: 9px;
+      border: 1px solid var(--line-soft); border-radius: 10px; padding: 8px 10px 8px 12px;
+      font-size: 0.88rem; color: var(--ivory);
+    }
+    .pref-main { display: flex; align-items: center; gap: 9px; cursor: pointer; min-width: 0; flex: 1; }
+    .pref-qty { display: inline-flex; align-items: center; gap: 5px; }
+    .pref-qty input { width: 58px; padding: 5px 7px; text-align: center; font-size: 0.84rem; }
+    .pref-qty small { color: var(--muted); font-size: 0.72rem; min-width: 28px; }
+    .pref:has(input:checked) { border-color: var(--gold); background: rgba(201, 162, 39, 0.08); }
+    .pref-main input { width: 16px; height: 16px; accent-color: #C9A227; flex-shrink: 0; }
+    .hint-inline { font-weight: 400; font-size: 0.74rem; color: var(--muted); margin-left: 6px; }
+
     /* Entry sheet: every product on screen at once, with a checkbox and the
        quantities that actually get used day to day. */
     .sheet { border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
@@ -344,6 +382,7 @@ import { IconComponent } from '../shared/icon.component';
 export class CustomerDetailComponent implements OnInit {
   private api = inject(ApiService);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private toast = inject(ToastService);
   private confirm = inject(ConfirmService);
   auth = inject(AuthService);
@@ -375,8 +414,14 @@ export class CustomerDetailComponent implements OnInit {
   paymentForm = { amount: null as number | null, paymentDate: isoDate(), mode: 'Cash', note: '' };
   editForm: any = {};
 
+  /** Set when the page is opened from the grid's small + icon (?entry=1). */
+  private autoEntry = false;
+  /** Quick-entry mode: once the sheet closes (saved or cancelled), go back to the grid. */
+  private returnToGrid = false;
+
   ngOnInit() {
     this.customerId = this.route.snapshot.paramMap.get('id') || '';
+    this.autoEntry = this.route.snapshot.queryParamMap.get('entry') === '1';
     this.api.getAdminProducts().subscribe({ next: p => (this.products = p.filter(x => x.available)) });
     this.loadCustomer();
     this.loadBill();
@@ -384,7 +429,14 @@ export class CustomerDetailComponent implements OnInit {
 
   private loadCustomer() {
     this.api.getCustomers().subscribe({
-      next: list => (this.customer = list.find(c => c.id === this.customerId) || null)
+      next: list => {
+        this.customer = list.find(c => c.id === this.customerId) || null;
+        if (this.autoEntry) {
+          this.autoEntry = false;
+          this.returnToGrid = true;
+          this.openEntry();
+        }
+      }
     });
   }
 
@@ -406,9 +458,23 @@ export class CustomerDetailComponent implements OnInit {
 
   // ---------------- Daily entry ----------------
 
+  /** Closes the sheet; in quick-entry mode this also returns to the customer grid. */
+  closeEntry() {
+    this.entryOpen = false;
+    if (this.returnToGrid) {
+      this.returnToGrid = false;
+      this.router.navigate(['/management/panel/customers']);
+    }
+  }
+
   openEntry() {
     this.entryForm = { from: isoDate(), to: isoDate(), note: '', paid: false, paymentMode: 'Cash' };
+    // The customer's usual products (chosen when they were added) come
+    // pre-ticked at quantity 1, so a routine day is two clicks: open, save.
     this.picked = {};
+    for (const id of this.customer?.preferredProductIds || []) {
+      this.picked[id] = this.customer?.preferredQuantities?.[id] || 1;
+    }
     this.modalError = '';
     this.entryOpen = true;
   }
@@ -501,6 +567,12 @@ export class CustomerDetailComponent implements OnInit {
         } else {
           this.toast.info(`Saved on credit: ${label} added to outstanding.`);
         }
+        if (this.returnToGrid) {
+          // Quick entry from the grid's + icon: job done, straight back to the list.
+          this.returnToGrid = false;
+          this.router.navigate(['/management/panel/customers']);
+          return;
+        }
         this.loadBill();
       },
       error: err => {
@@ -585,10 +657,37 @@ export class CustomerDetailComponent implements OnInit {
       email: this.customer.email || '',
       address: this.customer.address || '',
       password: '',
-      active: this.customer.active
+      active: this.customer.active,
+      preferredProductIds: [...(this.customer.preferredProductIds || [])],
+      preferredQuantities: { ...(this.customer.preferredQuantities || {}) }
     };
+    // Every ticked product carries a quantity, even for records saved before
+    // quantities existed.
+    for (const id of this.editForm.preferredProductIds || []) {
+      if (!this.editForm.preferredQuantities![id]) this.editForm.preferredQuantities![id] = 1;
+    }
     this.modalError = '';
     this.editOpen = true;
+  }
+
+  togglePreferred(id: string) {
+    const list: string[] = this.editForm.preferredProductIds || (this.editForm.preferredProductIds = []);
+    const qtys = this.editForm.preferredQuantities || (this.editForm.preferredQuantities = {});
+    const i = list.indexOf(id);
+    if (i >= 0) {
+      list.splice(i, 1);
+      delete qtys[id];
+    } else {
+      list.push(id);
+      qtys[id] = qtys[id] || 1;
+    }
+  }
+
+  /** Usual daily quantity for a ticked product; blank or 0 falls back to 1. */
+  setPreferredQty(id: string, value: number) {
+    const qtys = this.editForm.preferredQuantities || (this.editForm.preferredQuantities = {});
+    const qty = Math.round((Number(value) || 0) * 100) / 100;
+    qtys[id] = qty > 0 ? qty : 1;
   }
 
   saveEdit() {

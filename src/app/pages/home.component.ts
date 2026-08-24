@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { ApiService } from '../core/api.service';
+import { AuthService } from '../core/auth.service';
 import { CartService } from '../core/cart.service';
 import { FARM, SOCIALS, waLink } from '../core/farm';
 import { Product } from '../core/models';
@@ -82,26 +83,6 @@ interface Slide {
       <p>{{ farm.tagline2 }}</p>
     </div>
 
-    <!-- ================= WHY US ================= -->
-    <section class="section">
-      <div class="container">
-        <div class="section-head">
-          <span class="section-label">Why Aryavart</span>
-          <h2>Purity you can taste, <span class="hl">promises we keep</span></h2>
-          <p>Every product follows one simple principle — quality over quantity.</p>
-        </div>
-        <div class="feat-grid">
-          @for (f of features; track f.title) {
-            <div class="card feat">
-              <span class="feat-ic"><app-icon [name]="f.icon" [size]="22" /></span>
-              <h3>{{ f.title }}</h3>
-              <p>{{ f.body }}</p>
-            </div>
-          }
-        </div>
-      </div>
-    </section>
-
     <!-- ================= PRODUCTS PREVIEW ================= -->
     <section class="section section-alt">
       <div class="container">
@@ -169,6 +150,26 @@ interface Slide {
         } @else {
           <p class="muted">Today's fresh listing is being prepared — please check back in a moment.</p>
         }
+      </div>
+    </section>
+
+    <!-- ================= WHY US ================= -->
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-label">Why Aryavart</span>
+          <h2>Purity you can taste, <span class="hl">promises we keep</span></h2>
+          <p>Every product follows one simple principle — quality over quantity.</p>
+        </div>
+        <div class="feat-grid">
+          @for (f of features; track f.title) {
+            <div class="card feat">
+              <span class="feat-ic"><app-icon [name]="f.icon" [size]="22" /></span>
+              <h3>{{ f.title }}</h3>
+              <p>{{ f.body }}</p>
+            </div>
+          }
+        </div>
       </div>
     </section>
 
@@ -248,7 +249,9 @@ interface Slide {
               families milk and dairy the way nature intended — fresh, safe, and full of love. Small beginnings, but a
               big heart behind every product.
             </blockquote>
-            <figcaption>— Sourabh Singh, Founder</figcaption>
+            <figcaption>—
+              <a [href]="farm.founderInstagram" target="_blank" rel="noopener" class="founder-link">Sourabh Singh</a>, Founder
+            </figcaption>
           </figure>
           <figure class="card quote">
             <div class="qmark">“</div>
@@ -291,8 +294,51 @@ interface Slide {
         </a>
       </div>
     </section>
+
+    <!-- ================= WELCOME POPUP ================= -->
+    @if (welcomeOpen) {
+      <div class="wl-back" (click)="closeWelcome()">
+        <div class="wl-card fade-up" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-label="Welcome">
+          <img [src]="farm.logo" alt="" />
+          <h3>Welcome to Aryavart<sup class="tm">™</sup></h3>
+          <p>Kindly login or register to see your bills, track payments and order faster.</p>
+          <div class="wl-actions">
+            <a routerLink="/login" class="btn btn-primary" (click)="closeWelcome()">Login</a>
+            <a routerLink="/register" class="btn btn-outline" (click)="closeWelcome()">Register</a>
+          </div>
+          <button type="button" class="wl-skip" (click)="closeWelcome()">Skip — I'll do it later</button>
+        </div>
+      </div>
+    }
   `,
   styles: [`
+    .wl-back {
+      position: fixed; inset: 0; z-index: 120;
+      background: rgba(5, 4, 2, 0.72); backdrop-filter: blur(5px);
+      display: grid; place-items: center; padding: 20px;
+    }
+    .wl-card {
+      width: min(400px, 100%); text-align: center;
+      background: #12100A; border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 34px 30px 24px;
+    }
+    .wl-card img {
+      width: 86px; height: 86px; border-radius: 50%; margin: 0 auto 16px;
+      border: 2px solid var(--gold); box-shadow: 0 0 26px rgba(201, 162, 39, 0.4);
+    }
+    .wl-card h3 { font-size: 1.5rem; color: var(--gold-2); margin-bottom: 8px; }
+    .wl-card p { color: var(--muted); font-size: 0.94rem; margin-bottom: 20px; }
+    .wl-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .wl-actions .btn { min-width: 120px; }
+    .wl-skip {
+      margin-top: 16px; background: none; border: none; cursor: pointer;
+      color: var(--muted); font-size: 0.82rem; text-decoration: underline dotted;
+      font-family: var(--font-body);
+    }
+    .wl-skip:hover { color: var(--gold-2); }
+    .founder-link { color: var(--gold-2); text-decoration: underline dotted; text-underline-offset: 3px; }
+    .founder-link:hover { color: #F2DE9B; }
+
     /* ---------- hero slider ---------- */
     /* A 780px-tall hero on a 1905px-wide screen is a 2.4:1 box holding a 16:9
        photograph, so cover was throwing away nearly a third of every image's
@@ -524,6 +570,7 @@ interface Slide {
 })
 export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   private api = inject(ApiService);
+  auth = inject(AuthService);
   cart = inject(CartService);
 
   farm = FARM;
@@ -612,7 +659,18 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     { q: 'Are your products made using traditional methods?', a: 'Yes — curd, ghee and buttermilk are all prepared using time-honoured village methods, in small daily batches.' }
   ];
 
+  /** First-visit nudge: shown once per browser session to logged-out visitors. */
+  welcomeOpen = false;
+
+  closeWelcome() {
+    this.welcomeOpen = false;
+    try { sessionStorage.setItem('adf_welcome_seen', '1'); } catch { /* private mode */ }
+  }
+
   ngOnInit() {
+    if (!this.auth.isLoggedIn() && !sessionStorage.getItem('adf_welcome_seen')) {
+      setTimeout(() => (this.welcomeOpen = true), 700);
+    }
     this.api.getProducts().subscribe({
       next: list => {
         // The home strip is a quick "buy today" shelf, so upcoming and sold-out
