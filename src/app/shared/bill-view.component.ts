@@ -1,9 +1,10 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { Bill, DailyEntry, Payment } from '../core/models';
 import { FARM, niceDate } from '../core/farm';
 import { billPdfFile, downloadBillPdf } from '../core/pdf';
+import { ToastService } from '../core/toast.service';
 import { IconComponent } from './icon.component';
 
 /**
@@ -173,6 +174,8 @@ import { IconComponent } from './icon.component';
   `]
 })
 export class BillViewComponent {
+  private toast = inject(ToastService);
+
   @Input({ required: true }) bill!: Bill;
   @Input() canManage = false;
   @Output() removeEntry = new EventEmitter<DailyEntry>();
@@ -213,7 +216,7 @@ export class BillViewComponent {
         await nav.share({
           files: [file],
           title: `${FARM.name} — Bill`,
-          text: `Bill for ${b.customerName} (${b.phone}) · ${niceDate(b.from)} to ${niceDate(b.to)} · Outstanding ₹${b.outstanding}`
+          text: `Bill for ${b.customerName} · ${niceDate(b.from)} to ${niceDate(b.to)} (PDF attached)`
         });
         return;                                   // real PDF handed to WhatsApp
       }
@@ -228,32 +231,13 @@ export class BillViewComponent {
     } catch {
       /* PDF failed — still open the chat with the text summary */
     }
-    const lines: string[] = [];
-    lines.push(`*${FARM.name}*`);
-    lines.push(FARM.tagline2);
-    lines.push('');
-    lines.push(`Bill for: ${b.customerName}`);
-    lines.push(`Period: ${niceDate(b.from)} to ${niceDate(b.to)}`);
-    lines.push('');
-
-    if (b.entries.length > 0) {
-      lines.push('*Purchases*');
-      b.entries.forEach(e => {
-        lines.push(`${niceDate(e.entryDate)} — ${e.productName} ${e.quantity} ${e.unit || ''} x ₹${e.rate} = ₹${e.total}`);
-      });
-      lines.push('');
-    }
-
-    if (b.previousBalance > 0) {
-      lines.push(`Previous balance (till ${this.dayBefore(b.from)}): ₹${b.previousBalance}`);
-    }
-    lines.push(`Total purchases: ₹${b.periodTotal}`);
-    lines.push(`Paid this period: ₹${b.periodPaid}`);
-    lines.push(`*Outstanding: ₹${b.outstanding}*`);
-    lines.push('');
-    lines.push(b.outstanding > 0
-      ? 'Kindly clear the outstanding amount at your convenience. Thank you!'
-      : 'Your account is fully settled. Thank you!');
+    // No detail dump in the chat — everything lives in the PDF. Just a short
+    // courtesy line; the admin attaches the freshly downloaded file.
+    const lines = [
+      `Namaste ${b.customerName} ji! Your ${FARM.name} bill for ` +
+      `${niceDate(b.from)} to ${niceDate(b.to)} is attached as a PDF. Thank you!`
+    ];
+    this.toast.info('Bill PDF downloaded ✓ — WhatsApp opened. Attach the PDF from Downloads and send.', 6500);
 
     lines.push('');
     lines.push('The detailed PDF bill has just been downloaded on this device — please attach it here.');

@@ -35,7 +35,7 @@ import { ProductImage } from '../shared/product-image';
         <div class="skeleton" style="height: 260px;"></div>
       } @else {
         <div class="tbl-wrap">
-          <table class="tbl">
+          <table class="tbl" style="min-width: 700px;">
             <thead>
               <tr>
                 <th class="th-ord">Order</th>

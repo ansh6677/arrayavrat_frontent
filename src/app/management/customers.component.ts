@@ -122,13 +122,28 @@ import { IconComponent } from '../shared/icon.component';
               } @else {
                 <div class="pref-grid">
                   @for (p of products; track p.id) {
-                    <label class="pref">
-                      <input type="checkbox" [checked]="form.preferredProductIds.includes(p.id!)"
-                             (change)="togglePreferred(p.id!)" />
-                      <span>{{ p.name }}</span>
-                    </label>
+                    <div class="pref">
+                      <label class="pref-main">
+                        <input type="checkbox" [checked]="form.preferredProductIds.includes(p.id!)"
+                               (change)="togglePreferred(p.id!)" />
+                        <span>{{ p.name }}</span>
+                      </label>
+                      @if (form.preferredProductIds.includes(p.id!)) {
+                        <span class="pref-qty">
+                          <input type="number" min="0.5" step="0.5"
+                                 [ngModel]="form.preferredQuantities[p.id!]"
+                                 [ngModelOptions]="{ standalone: true }"
+                                 (ngModelChange)="setPreferredQty(p.id!, $event)"
+                                 [attr.aria-label]="'Daily quantity of ' + p.name" />
+                          <small>{{ p.unit }}</small>
+                        </span>
+                      }
+                    </div>
                   }
                 </div>
+                <p class="hint" style="margin-top: 8px;">
+                  The quantity you set here comes pre-filled in every daily entry — one tap to save a routine day.
+                </p>
               }
             </div>
             <button class="btn btn-primary" (click)="save()" [disabled]="saving">
@@ -155,14 +170,18 @@ import { IconComponent } from '../shared/icon.component';
       transition: background 0.15s ease, transform 0.15s ease;
     }
     .qe-btn:hover { background: var(--gold-grad); color: #171307; transform: scale(1.08); }
-    .pref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+    .pref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
     .pref {
-      display: flex; align-items: center; gap: 9px; cursor: pointer;
-      border: 1px solid var(--line-soft); border-radius: 10px; padding: 9px 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 9px;
+      border: 1px solid var(--line-soft); border-radius: 10px; padding: 8px 10px 8px 12px;
       font-size: 0.88rem; color: var(--ivory);
     }
+    .pref-main { display: flex; align-items: center; gap: 9px; cursor: pointer; min-width: 0; flex: 1; }
+    .pref-qty { display: inline-flex; align-items: center; gap: 5px; }
+    .pref-qty input { width: 58px; padding: 5px 7px; text-align: center; font-size: 0.84rem; }
+    .pref-qty small { color: var(--muted); font-size: 0.72rem; min-width: 28px; }
     .pref:has(input:checked) { border-color: var(--gold); background: rgba(201, 162, 39, 0.08); }
-    .pref input { width: 16px; height: 16px; accent-color: #C9A227; }
+    .pref-main input { width: 16px; height: 16px; accent-color: #C9A227; flex-shrink: 0; }
     .hint-inline { font-weight: 400; font-size: 0.74rem; color: var(--muted); margin-left: 6px; }
 
     .list-count { font-size: 0.84rem; margin-bottom: 10px; }
@@ -192,7 +211,11 @@ export class CustomersComponent implements OnInit {
   msg = '';
   error = '';
 
-  form = { name: '', phone: '', email: '', address: '', password: '', preferredProductIds: [] as string[] };
+  form = {
+    name: '', phone: '', email: '', address: '', password: '',
+    preferredProductIds: [] as string[],
+    preferredQuantities: {} as Record<string, number>
+  };
 
   ngOnInit() {
     this.load();
@@ -210,8 +233,19 @@ export class CustomersComponent implements OnInit {
 
   togglePreferred(id: string) {
     const i = this.form.preferredProductIds.indexOf(id);
-    if (i >= 0) this.form.preferredProductIds.splice(i, 1);
-    else this.form.preferredProductIds.push(id);
+    if (i >= 0) {
+      this.form.preferredProductIds.splice(i, 1);
+      delete this.form.preferredQuantities[id];
+    } else {
+      this.form.preferredProductIds.push(id);
+      this.form.preferredQuantities[id] = this.form.preferredQuantities[id] || 1;
+    }
+  }
+
+  /** Usual daily quantity for a ticked product; blank or 0 falls back to 1. */
+  setPreferredQty(id: string, value: number) {
+    const qty = Math.round((Number(value) || 0) * 100) / 100;
+    this.form.preferredQuantities[id] = qty > 0 ? qty : 1;
   }
 
   /** The grid's small + icon: opens the customer with the entry sheet ready. */
@@ -253,7 +287,7 @@ export class CustomersComponent implements OnInit {
   }
 
   openAdd() {
-    this.form = { name: '', phone: '', email: '', address: '', password: '', preferredProductIds: [] };
+    this.form = { name: '', phone: '', email: '', address: '', password: '', preferredProductIds: [], preferredQuantities: {} };
     this.error = '';
     this.addOpen = true;
   }

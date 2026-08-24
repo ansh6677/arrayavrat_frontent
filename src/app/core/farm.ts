@@ -97,7 +97,7 @@ export const SOCIALS: SocialLink[] = [
     key: 'whatsapp',
     icon: 'whatsapp',
     label: 'WhatsApp',
-    handle: '+91 9631022006',
+    handle: '+91 96310 22006',
     note: 'Order in one message · confirmed in 30 min',
     url: waLink(),
     external: true

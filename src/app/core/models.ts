@@ -25,6 +25,8 @@ export interface UserInfo {
   signupSource?: string;
   /** Products this customer usually takes — pre-ticked in the daily entry sheet. */
   preferredProductIds?: string[];
+  /** Usual daily quantity per product (productId → qty); missing entries default to 1. */
+  preferredQuantities?: Record<string, number>;
 }
 
 export interface DailyEntry {

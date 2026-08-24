@@ -360,7 +360,11 @@ table.tbl tr:hover td { background: rgba(228, 199, 102, 0.05); }
   border-bottom: 1px solid var(--line-soft); padding: 12px 26px;
   position: sticky; top: 0; z-index: 20;
 }
-.mgmt-top .mt-title { font-family: var(--font-display); font-size: 1.05rem; color: var(--gold-2); flex: 1; min-width: 0; }
+.mgmt-top .mt-title {
+  font-family: var(--font-display); font-size: 1.05rem; color: var(--gold-2);
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .mgmt-user { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 0.92rem; color: var(--ivory); }
 .mgmt-burger {
   display: none; background: none; cursor: pointer; padding: 7px;
@@ -501,6 +505,11 @@ table.tbl tr:hover td { background: rgba(228, 199, 102, 0.05); }
      collapses a rail, and there is no rail at this width */
   .mgmt-burger { display: inline-flex; }
   .side-toggle { display: none; }
+  /* the header holds three things; on a phone the user's name is the one that
+     can go — the burger, the brand and Logout all earn their keep */
+  .mu-name { display: none; }
+  .mgmt-top { padding: 12px 16px; }
+  .mgmt-top .mt-title { font-size: 0.98rem; }
   .grid-2 { grid-template-columns: 1fr; }
 }
 
@@ -697,6 +706,7 @@ table.tbl tr:hover td { background: rgba(228, 199, 102, 0.05); }
   line-height: 1.25;
   margin-top: 2px;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .link-card:hover .lc-handle { color: var(--gold-2); }
 .link-card .lc-note {
