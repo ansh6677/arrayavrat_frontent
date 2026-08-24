@@ -379,8 +379,33 @@ async function buildBillPdf(bill: Bill) {
     doc.setFontSize(8.4);
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
     doc.text('Thank you for choosing ' + FARM.name + ' — ' + FARM.tagline2, W / 2, H - 40, { align: 'center' });
+    // Second row: licence + tappable links. textWithLink cannot centre-align,
+    // so the segments are measured and laid out from a computed start point —
+    // gold for the links, muted for the rest.
     doc.setFontSize(7.6);
-    doc.text('FSSAI Lic. No. ' + FARM.fssai + '   ·   Instagram: @aryavart_farm   ·   ' + FARM.phone, W / 2, H - 28, { align: 'center' });
+    const sep = '   ·   ';
+    const segments: { text: string; url?: string }[] = [
+      { text: 'FSSAI Lic. No. ' + FARM.fssai },
+      { text: sep },
+      { text: FARM.websiteLabel, url: FARM.website },
+      { text: sep },
+      { text: '@aryavart_farm', url: FARM.instagram },
+      { text: sep },
+      { text: FARM.phone }
+    ];
+    const rowWidth = segments.reduce((w, seg) => w + doc.getTextWidth(seg.text), 0);
+    let sx = (W - rowWidth) / 2;
+    for (const seg of segments) {
+      if (seg.url) {
+        doc.setTextColor(GOLD_DEEP[0], GOLD_DEEP[1], GOLD_DEEP[2]);
+        doc.textWithLink(seg.text, sx, H - 28, { url: seg.url });
+      } else {
+        doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+        doc.text(seg.text, sx, H - 28);
+      }
+      sx += doc.getTextWidth(seg.text);
+    }
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
     doc.text('Page ' + i + ' / ' + pageCount, W - 40, H - 28, { align: 'right' });
   }
 
