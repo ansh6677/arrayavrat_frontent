@@ -72,11 +72,15 @@ import { ProductImage } from '../shared/product-image';
               <div class="srow total"><span>Total</span><b>₹{{ cart.total() | number: '1.0-2' }}</b></div>
 
               <div class="field mt">
-                <label>Your name (optional)</label>
+                <label>Your name <span class="req">*</span></label>
                 <input name="cname" [(ngModel)]="name" placeholder="e.g. Ramesh Kumar" />
               </div>
               <div class="field">
-                <label>Delivery address (optional)</label>
+                <label>Mobile number <span class="req">*</span></label>
+                <input name="cphone" type="tel" [(ngModel)]="phone" placeholder="10-digit WhatsApp number" />
+              </div>
+              <div class="field">
+                <label>Delivery address <span class="req">*</span></label>
                 <textarea name="caddr" [(ngModel)]="address" placeholder="House, street, area…" rows="2"></textarea>
               </div>
               <div class="field">
@@ -84,6 +88,7 @@ import { ProductImage } from '../shared/product-image';
                 <input name="cnote" [(ngModel)]="note" placeholder="e.g. deliver before 7 AM" />
               </div>
 
+              @if (formError) { <div class="alert alert-error">{{ formError }}</div> }
               <button class="btn btn-wa btn-block" (click)="orderOnWhatsApp()">
                 <app-icon name="whatsapp" [size]="18" />
                 Order on WhatsApp — ₹{{ cart.total() | number: '1.0-2' }}
@@ -144,7 +149,9 @@ export class CartComponent {
   img = new ProductImage();
 
   name = '';
+  phone = '';
   address = '';
+  formError = '';
   note = '';
 
   inc(id: string, qty: number) {
@@ -159,6 +166,18 @@ export class CartComponent {
     const items = this.cart.items();
     if (items.length === 0) return;
 
+    // The farm needs all three to deliver — no anonymous orders.
+    this.formError = '';
+    if (!this.name.trim() || !this.address.trim() || !this.phone.trim()) {
+      this.formError = 'Please fill in your name, mobile number and delivery address.';
+      return;
+    }
+    const digits = this.phone.replace(/\D/g, '');
+    if (digits.length !== 10) {
+      this.formError = 'Please enter a valid 10-digit mobile number.';
+      return;
+    }
+
     const lines: string[] = ['I want to order:', ''];
     items.forEach((i, idx) => {
       const lineTotal = Math.round(i.qty * i.product.price * 100) / 100;
@@ -167,8 +186,9 @@ export class CartComponent {
     });
     lines.push('');
     lines.push(`Total: ₹${this.cart.total()}`);
-    if (this.name.trim()) lines.push(`Name: ${this.name.trim()}`);
-    if (this.address.trim()) lines.push(`Address: ${this.address.trim()}`);
+    lines.push(`Name: ${this.name.trim()}`);
+    lines.push(`Mobile: ${digits}`);
+    lines.push(`Address: ${this.address.trim()}`);
     if (this.note.trim()) lines.push(`Note: ${this.note.trim()}`);
     lines.push('');
     lines.push('Please confirm my order.');

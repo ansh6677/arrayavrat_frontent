@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 
 import { Bill, DailyEntry, Payment } from '../core/models';
 import { FARM, niceDate } from '../core/farm';
-import { downloadBillPdf } from '../core/pdf';
+import { billPdfFile, downloadBillPdf } from '../core/pdf';
 import { IconComponent } from './icon.component';
 
 /**
@@ -122,6 +122,12 @@ import { IconComponent } from './icon.component';
       }
 
       <div class="khata-totals">
+        @if (bill.previousBalance > 0) {
+          <div class="t-prev">
+            <div class="t-label">Previous balance (till {{ dayBefore(bill.from) }})</div>
+            <div class="t-value">₹{{ bill.previousBalance | number: '1.0-2' }}</div>
+          </div>
+        }
         <div>
           <div class="t-label">Period purchases</div>
           <div class="t-value">₹{{ bill.periodTotal | number: '1.0-2' }}</div>
@@ -141,7 +147,7 @@ import { IconComponent } from './icon.component';
       </div>
     </div>
 
-    <div class="mt no-print right bill-actions">
+    <div class="mt no-print bill-actions">
       <button class="btn btn-primary" (click)="pdf()">
         <app-icon name="download" [size]="16" /> Download PDF
       </button>
@@ -152,6 +158,9 @@ import { IconComponent } from './icon.component';
     </div>
   `,
   styles: [`
+    /* The action row wraps instead of colliding when space runs out. */
+    .bill-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; align-items: center; }
+
     .bill-actions { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; }
 
     .chip-paid, .chip-udhaar {
@@ -175,12 +184,50 @@ export class BillViewComponent {
     downloadBillPdf(this.bill);
   }
 
+  /** dd-mm-yyyy of the day before an ISO date — labels the previous-balance cutoff. */
+  dayBefore(iso: string): string {
+    const d = new Date(iso);
+    d.setDate(d.getDate() - 1);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}-${mm}-${d.getFullYear()}`;
+  }
+
   /**
-   * Sends the bill summary to the customer's own WhatsApp — the number they
-   * registered with. The PDF stays a separate download the farm can attach.
+   * Shares the actual PDF. Where the browser supports sharing files (Windows
+   * Chrome/Edge, Android, iPhone, Mac) the system share sheet opens with the
+   * PDF attached — pick WhatsApp, pick the customer, send. Where it doesn't,
+   * the PDF is downloaded and the customer's chat opens with the summary and
+   * a note to attach the file.
    */
-  shareOnWhatsApp() {
+  async shareOnWhatsApp() {
     const b = this.bill;
+
+    try {
+      const file = await billPdfFile(b);
+      const nav = navigator as Navigator & {
+        canShare?: (data: { files: File[] }) => boolean;
+        share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
+      };
+      if (nav.canShare && nav.share && nav.canShare({ files: [file] })) {
+        await nav.share({
+          files: [file],
+          title: `${FARM.name} — Bill`,
+          text: `Bill for ${b.customerName} (${b.phone}) · ${niceDate(b.from)} to ${niceDate(b.to)} · Outstanding ₹${b.outstanding}`
+        });
+        return;                                   // real PDF handed to WhatsApp
+      }
+    } catch (e) {
+      if ((e as { name?: string })?.name === 'AbortError') return;   // user closed the sheet
+      /* fall through to the download-and-chat path */
+    }
+
+    // Fallback: save the PDF, then open the customer's chat with the summary.
+    try {
+      await downloadBillPdf(b);
+    } catch {
+      /* PDF failed — still open the chat with the text summary */
+    }
     const lines: string[] = [];
     lines.push(`*${FARM.name}*`);
     lines.push(FARM.tagline2);
@@ -197,6 +244,9 @@ export class BillViewComponent {
       lines.push('');
     }
 
+    if (b.previousBalance > 0) {
+      lines.push(`Previous balance (till ${this.dayBefore(b.from)}): ₹${b.previousBalance}`);
+    }
     lines.push(`Total purchases: ₹${b.periodTotal}`);
     lines.push(`Paid this period: ₹${b.periodPaid}`);
     lines.push(`*Outstanding: ₹${b.outstanding}*`);
@@ -205,10 +255,15 @@ export class BillViewComponent {
       ? 'Kindly clear the outstanding amount at your convenience. Thank you!'
       : 'Your account is fully settled. Thank you!');
 
+    lines.push('');
+    lines.push('The detailed PDF bill has just been downloaded on this device — please attach it here.');
+
     // Indian numbers are stored as 10 digits; WhatsApp needs the country code.
     const digits = String(b.phone || '').replace(/\D/g, '');
     const number = digits.length === 10 ? `91${digits}` : digits;
+    const url = `https://wa.me/${number}?text=${encodeURIComponent(lines.join('\n'))}`;
 
-    window.open(`https://wa.me/${number}?text=${encodeURIComponent(lines.join('\n'))}`, '_blank');
+    const win = window.open(url, '_blank');
+    if (!win) window.location.href = url;         // popup blocked — last resort
   }
 }

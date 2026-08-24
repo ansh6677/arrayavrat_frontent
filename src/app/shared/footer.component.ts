@@ -97,6 +97,10 @@ import { IconComponent } from './icon.component';
               <app-icon name="clock" [size]="15" [stroke]="1.9" />
               <span>{{ farm.timing }}</span>
             </p>
+            <p class="fline">
+              <app-icon name="shield" [size]="15" [stroke]="1.9" />
+              <span>FSSAI Lic. No. {{ farm.fssai }}</span>
+            </p>
           </div>
 
         </div>
@@ -124,6 +128,7 @@ import { IconComponent } from './icon.component';
       <div class="foot-bottom">
         <div class="container-wide fb-inner">
           <span>© {{ year }} {{ farm.name }}<sup class="tm">™</sup> · Muzaffarpur, Bihar · All rights reserved</span>
+          <span class="fb-fssai">FSSAI Lic. No. {{ farm.fssai }}</span>
           <span class="fb-tag">{{ farm.tagline }}</span>
           <button type="button" class="to-top" (click)="toTop()" aria-label="Back to top">
             <app-icon name="arrow-up-right" [size]="14" /> Top

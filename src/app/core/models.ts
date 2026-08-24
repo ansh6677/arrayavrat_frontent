@@ -9,6 +9,8 @@ export interface Product {
   available: boolean;
   /** Teaser product (e.g. Mushroom, Spices) — shown with a "Coming soon" badge. */
   comingSoon?: boolean;
+  /** Display position on the website — lower comes first. */
+  sortOrder?: number;
 }
 
 export interface UserInfo {
@@ -19,6 +21,10 @@ export interface UserInfo {
   address?: string;
   role: string;      // ADMIN | VIEWER | CUSTOMER
   active: boolean;
+  /** PAGE = self-registered on the website, ADF = added by the farm. */
+  signupSource?: string;
+  /** Products this customer usually takes — pre-ticked in the daily entry sheet. */
+  preferredProductIds?: string[];
 }
 
 export interface DailyEntry {
@@ -75,6 +81,8 @@ export interface Bill {
   periodPaid: number;
   lifetimePurchases: number;
   lifetimePaid: number;
+  /** Dues carried in from before this period. */
+  previousBalance: number;
   outstanding: number;
 }
 
