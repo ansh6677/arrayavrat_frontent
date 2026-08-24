@@ -45,9 +45,15 @@ export const FARM = {
    * The site lists 9631022006 — change the value below to '919631022006'
    * if orders should go there instead.
    */
-  whatsappOrderNumber: '9631022006',
+  /**
+   * WhatsApp needs the country code — without the leading 91 the wa.me link
+   * silently fails on laptops. The number shown on the site stays 9631022006.
+   */
+  whatsappOrderNumber: '919631022006',
 
   email: 'aryavardairyfarm@gmail.com',
+  fssai: '20426061000097',
+  founderInstagram: 'https://www.instagram.com/sourabh_ms_singh?igsh=MTg3dXVoMTZwaGg0ZA==',
   address:
     'Jiyalal Rai Road, Near New Apartment, Ahiyapur Chowk – Safalta Coaching, Zero Mile, Muzaffarpur, Bihar, India – 842002',
   addressShort: 'Zero Mile, Muzaffarpur, Bihar – 842002',
@@ -91,7 +97,7 @@ export const SOCIALS: SocialLink[] = [
     key: 'whatsapp',
     icon: 'whatsapp',
     label: 'WhatsApp',
-    handle: '+91 98786 75467',
+    handle: '+91 96310 22006',
     note: 'Order in one message · confirmed in 30 min',
     url: waLink(),
     external: true

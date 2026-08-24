@@ -82,7 +82,11 @@ import { IconComponent } from '../shared/icon.component';
             <div class="card founder">
               <span class="f-mono">{{ f.initials }}</span>
               <div>
-                <h3>{{ f.name }}</h3>
+                <h3>
+                  @if (f.insta) {
+                    <a [href]="f.insta" target="_blank" rel="noopener" class="f-link">{{ f.name }}</a>
+                  } @else { {{ f.name }} }
+                </h3>
                 <p class="muted f-role">{{ f.role }}</p>
                 <p class="f-quote">“{{ f.quote }}”</p>
               </div>
@@ -98,6 +102,9 @@ import { IconComponent } from '../shared/icon.component';
     </section>
   `,
   styles: [`
+    .f-link { color: var(--gold-2); text-decoration: underline dotted; text-underline-offset: 3px; }
+    .f-link:hover { color: #F2DE9B; }
+
     .story-grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: 54px; align-items: center; }
 
     /* Two separate photographs, stacked with a gap. They used to be a collage —
@@ -162,6 +169,7 @@ export class AboutComponent {
   founders = [
     {
       name: 'Sourabh Singh',
+      insta: FARM.founderInstagram,
       initials: 'SS',
       role: 'Co-founder',
       quote: 'Food should be pure, honest, and made with care. Small beginnings, but a big heart behind every product.'
