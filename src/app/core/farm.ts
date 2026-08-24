@@ -64,6 +64,9 @@ export const FARM = {
     'https://maps.google.com/maps?ll=26.145906,85.388088&q=26.145677,85.388453&z=17&output=embed',
   mapLink: 'https://www.google.com/maps/dir/?api=1&destination=26.145677,85.388453',
   instagram: 'https://www.instagram.com/aryavart_farm',
+  /** The live site — printed (and tappable) on every bill. */
+  website: 'https://www.aryavartdairyfarm.com/',
+  websiteLabel: 'www.aryavartdairyfarm.com',
   youtube: 'https://youtube.com/@aryavartdairyfarm',
   timing: 'Fresh delivery every morning & evening — within 2 hours of milking'
 };
