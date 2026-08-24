@@ -165,13 +165,14 @@ export class ExpensesComponent implements OnInit {
   to = isoDate();
 
   categories = [
-    'Cattle Feed',
-    'Labour / Salary',
-    'Medicine & Vet',
-    'Transport / Fuel',
+    'Cow Milk',
+    'Buffalo Milk',
+    'Panner',
+    'Ghee',
     'Electricity',
     'Equipment',
     'Rent',
+    'transport',
     'Other'
   ];
 
