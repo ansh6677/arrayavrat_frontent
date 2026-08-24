@@ -161,6 +161,7 @@ export class MgmtLayoutComponent implements OnInit {
   items: NavItem[] = [
     { link: '/management/panel', icon: 'chart', label: 'Dashboard', exact: true, badge: () => this.todayEntries() },
     { link: '/management/panel/customers', icon: 'users', label: 'Customers', badge: () => this.customerCount() },
+    { link: '/management/panel/extra-sales', icon: 'cart', label: 'Extra Sells' },
     { link: '/management/panel/expenses', icon: 'wallet', label: 'Expenses' },
     { link: '/management/panel/products', icon: 'bottle', label: 'Products' },
     { link: '/management/panel/staff', icon: 'key', label: 'Login Management', adminOnly: true }

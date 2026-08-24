@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { ApiService } from '../core/api.service';
+import { saveBlob } from '../core/download';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
@@ -21,13 +22,18 @@ import { ProductImage } from '../shared/product-image';
     <p class="mgmt-sub">Update prices, photos and availability here — changes reflect instantly on the website and in new entries.</p>
 
     <div class="panel">
-      @if (auth.isFullAdmin()) {
-        <div class="toolbar">
+      <div class="toolbar">
+        <button class="btn btn-outline" (click)="exportCsv()" [disabled]="exporting"
+                title="Download the product list as CSV">
+          @if (exporting) { <span class="spinner"></span> } @else { <app-icon name="download" [size]="15" /> }
+          Export CSV
+        </button>
+        @if (auth.isFullAdmin()) {
           <button class="btn btn-primary push" (click)="startAdd()">
             <app-icon name="plus" [size]="15" [stroke]="2.4" /> Add product
           </button>
-        </div>
-      }
+        }
+      </div>
 
       @if (error && !formOpen) { <div class="alert alert-error">{{ error }}</div> }
 
@@ -35,9 +41,10 @@ import { ProductImage } from '../shared/product-image';
         <div class="skeleton" style="height: 260px;"></div>
       } @else {
         <div class="tbl-wrap">
-          <table class="tbl">
+          <table class="tbl" style="min-width: 700px;">
             <thead>
               <tr>
+                <th class="th-ord">Order</th>
                 <th class="th-photo">Photo</th>
                 <th>Product</th><th>Category</th><th>Unit</th><th class="num">Price (₹)</th><th>Status</th>
                 @if (auth.isFullAdmin()) { <th class="right">Actions</th> }
@@ -46,6 +53,19 @@ import { ProductImage } from '../shared/product-image';
             <tbody>
               @for (p of products; track p.id) {
                 <tr>
+                  <td class="ord-cell">
+                    @if (auth.isFullAdmin()) {
+                      <span class="ord">
+                        <button type="button" (click)="move(p, -1)" [disabled]="$index === 0 || reordering"
+                                title="Move up" aria-label="Move up">▲</button>
+                        <b>{{ $index + 1 }}</b>
+                        <button type="button" (click)="move(p, 1)" [disabled]="$index === products.length - 1 || reordering"
+                                title="Move down" aria-label="Move down">▼</button>
+                      </span>
+                    } @else {
+                      <b class="ord-n">{{ $index + 1 }}</b>
+                    }
+                  </td>
                   <td>
                     <img class="p-thumb" [src]="img.src(p)" [alt]="p.name"
                          loading="lazy" (error)="img.failed(p)" />
@@ -53,6 +73,16 @@ import { ProductImage } from '../shared/product-image';
                   <td>
                     <b>{{ p.name }}</b>
                     @if (!p.imageUrl) { <span class="auto-tag" title="No image set — the website falls back to the category photo">auto photo</span> }
+                  </td>
+                  <td class="td-order" (click)="$event.stopPropagation()">
+                    @if (auth.isFullAdmin()) {
+                      <input class="ord-box" type="number" min="1" step="1"
+                             [ngModel]="p.sortOrder" [ngModelOptions]="{ standalone: true }"
+                             (change)="setOrder(p, $event)"
+                             [attr.aria-label]="'Display position for ' + p.name" />
+                    } @else {
+                      {{ p.sortOrder }}
+                    }
                   </td>
                   <td>{{ p.category }}</td>
                   <td>{{ p.unit }}</td>
@@ -135,6 +165,10 @@ import { ProductImage } from '../shared/product-image';
               </div>
             </div>
             <div class="field">
+              <label>Display position <span class="hint-inline">1 shows first on the website</span></label>
+              <input type="number" name="pord" [(ngModel)]="form.sortOrder" min="1" step="1" />
+            </div>
+            <div class="field">
               <label>Status</label>
               <select name="pstatus" [ngModel]="status()" (ngModelChange)="setStatus($event)">
                 <option value="available">Available</option>
@@ -154,6 +188,22 @@ import { ProductImage } from '../shared/product-image';
     }
   `,
   styles: [`
+
+
+    .th-order, .td-order { width: 84px; }
+    .ord-box { width: 70px; padding: 7px 8px; text-align: center; font-weight: 700; }
+    .hint-inline { font-weight: 400; font-size: 0.74rem; color: var(--muted); margin-left: 6px; }
+
+    .th-ord { width: 74px; }
+    .ord { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; }
+    .ord b, .ord-n { font-family: var(--font-display); color: var(--gold-2); font-size: 0.95rem; }
+    .ord button {
+      width: 24px; height: 20px; line-height: 1; font-size: 0.62rem; cursor: pointer;
+      border: 1px solid var(--line-soft); background: #100E08; color: var(--muted); border-radius: 6px;
+    }
+    .ord button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold-2); }
+    .ord button:disabled { opacity: 0.35; cursor: default; }
+
     .actions { white-space: nowrap; }
     .actions .btn { margin-left: 6px; }
     .th-photo { width: 74px; }
@@ -207,6 +257,9 @@ export class ProductsAdminComponent implements OnInit {
 
   form: Product = this.blank();
 
+  /** True while a reorder round-trip is saving, so the arrows can't race. */
+  reordering = false;
+
   ngOnInit() {
     this.load();
   }
@@ -217,17 +270,29 @@ export class ProductsAdminComponent implements OnInit {
   }
 
   private blank(): Product {
-    return { name: '', category: '', description: '', unit: 'Litre', price: 0, imageUrl: '', available: true, comingSoon: false };
+    return { name: '', category: '', description: '', unit: 'Litre', price: 0, imageUrl: '', available: true, comingSoon: false, sortOrder: this.products.length + 1 };
   }
 
   load() {
     this.loading = true;
     this.api.getAdminProducts().subscribe({
       next: list => {
-        this.products = list;
+        // Admin table follows the display order the arrows control.
+        this.products = [...list].sort((a, b) => (a.sortOrder ?? 100) - (b.sortOrder ?? 100) || a.name.localeCompare(b.name));
         this.loading = false;
       },
       error: () => (this.loading = false)
+    });
+  }
+
+  exporting = false;
+
+  exportCsv() {
+    if (this.exporting) return;
+    this.exporting = true;
+    this.api.downloadCsv('products.csv').subscribe({
+      next: blob => { saveBlob(blob, 'products.csv'); this.exporting = false; },
+      error: () => (this.exporting = false)
     });
   }
 
@@ -284,6 +349,57 @@ export class ProductsAdminComponent implements OnInit {
     }
     return 'Other';
   }
+
+  /**
+   * Moves a product one step in the display order. Positions are rewritten
+   * as 1..n around the swap, and only the rows whose number actually changed
+   * are saved — first click may touch several (old data all shared the same
+   * default), after that it's just the two neighbours.
+   */
+  move(p: Product, dir: -1 | 1) {
+    const i = this.products.indexOf(p);
+    const j = i + dir;
+    if (j < 0 || j >= this.products.length || this.reordering) return;
+
+    const next = [...this.products];
+    [next[i], next[j]] = [next[j], next[i]];
+
+    const changed = next
+      .map((prod, idx) => ({ prod, order: idx + 1 }))
+      .filter(x => (x.prod.sortOrder ?? 100) !== x.order);
+    if (changed.length === 0) return;
+
+    this.reordering = true;
+    let pending = changed.length;
+    for (const x of changed) {
+      this.api.updateProduct(x.prod.id!, { ...x.prod, sortOrder: x.order }).subscribe({
+        next: () => { x.prod.sortOrder = x.order; if (--pending === 0) this.finishMove(next); },
+        error: err => {
+          this.reordering = false;
+          this.toast.error(err?.error?.error || 'Could not save the new order.');
+        }
+      });
+    }
+  }
+
+  private finishMove(next: Product[]) {
+    this.products = next;
+    this.reordering = false;
+  }
+
+  /** Inline table edit: type 1, 2, 3… and the website reorders instantly. */
+  setOrder(p: Product, ev: Event) {
+    const value = Math.max(1, Math.round(Number((ev.target as HTMLInputElement).value) || 100));
+    this.api.updateProduct(p.id!, { ...p, sortOrder: value }).subscribe({
+      next: () => {
+        this.toast.success(`"${p.name}" moved to position ${value}.`);
+        this.load();
+      },
+      error: err => this.toast.error(err?.error?.error || 'Could not update the position.')
+    });
+  }
+
+
 
   save() {
     this.error = '';

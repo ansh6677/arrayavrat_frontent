@@ -46,6 +46,26 @@ async function loadLogo(): Promise<string | null> {
   }
 }
 
+let upiQrCache: string | null = null;
+
+/** The Paytm UPI QR card printed in the bill's scan-and-pay box. */
+async function loadUpiQr(): Promise<string | null> {
+  if (upiQrCache) return upiQrCache;
+  try {
+    const res = await fetch('assets/brand/upi-qr.jpg');
+    const blob = await res.blob();
+    upiQrCache = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    return upiQrCache;
+  } catch {
+    return null;
+  }
+}
+
 let signatureCache: string | null = null;
 
 /** Founder's scanned signature (transparent PNG) for the authorised-signatory block. */
@@ -71,9 +91,26 @@ async function loadSignature(): Promise<string | null> {
  * BILL TO card, striped tables, outstanding highlight, signature & footer.
  * The same PDF is generated from both the customer dashboard and the admin customer page.
  */
+/** Saves the bill PDF to the device (the Download button). */
 export async function downloadBillPdf(bill: Bill) {
+  const { doc, filename } = await buildBillPdf(bill);
+  doc.save(filename);
+}
+
+/**
+ * The bill as a real File — handed to the system share sheet so WhatsApp
+ * receives the actual PDF, not just a text summary.
+ */
+export async function billPdfFile(bill: Bill): Promise<File> {
+  const { doc, filename } = await buildBillPdf(bill);
+  const blob = doc.output('blob');
+  return new File([blob], filename, { type: 'application/pdf' });
+}
+
+async function buildBillPdf(bill: Bill) {
   const logo = await loadLogo();
   const signature = await loadSignature();
+  const upiQr = await loadUpiQr();
 
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
@@ -120,6 +157,8 @@ export async function downloadBillPdf(bill: Bill) {
   doc.text('Bill No: ' + billNo, W - 40, 60, { align: 'right' });
   doc.text('Date: ' + new Date().toLocaleDateString('en-IN'), W - 40, 73, { align: 'right' });
   doc.text('Ph: ' + FARM.phone + '  ·  ' + FARM.email, W - 40, 86, { align: 'right' });
+  doc.setTextColor(GOLD_BRIGHT[0], GOLD_BRIGHT[1], GOLD_BRIGHT[2]);
+  doc.text('FSSAI Lic. No. ' + FARM.fssai, W - 40, 99, { align: 'right' });
 
   // ============ BILL TO + PERIOD cards ============
   const cardY = 134;
@@ -219,9 +258,40 @@ export async function downloadBillPdf(bill: Bill) {
   }
 
   // ============ totals + outstanding + signature ============
-  if (fy > H - 210) {
+  // The scan-and-pay box on the left is the tallest thing here, so the
+  // page-break check reserves enough room for it.
+  if (fy > H - 280) {
     doc.addPage();
     fy = 64;
+  }
+
+  // ---- scan & pay (UPI) — sits level with the totals, on the left ----
+  if (upiQr) {
+    const qx = 40;
+    const qw = 180;
+    const qImgW = 118;
+    const qImgH = Math.round((qImgW * 615) / 479);   // the card's own ratio
+    const qh = qImgH + 60;
+
+    doc.setFillColor(253, 250, 240);
+    doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
+    doc.setLineWidth(1);
+    doc.roundedRect(qx, fy - 8, qw, qh, 10, 10, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(INK[0], INK[1], INK[2]);
+    doc.text('SCAN & PAY VIA UPI', qx + qw / 2, fy + 5, { align: 'center' });
+
+    doc.addImage(upiQr, 'JPEG', qx + (qw - qImgW) / 2, fy + 11, qImgW, qImgH);
+
+    doc.setFontSize(8.2);
+    doc.setTextColor(INK[0], INK[1], INK[2]);
+    doc.text(FARM.upiId, qx + qw / 2, fy + 11 + qImgH + 12, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.2);
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    doc.text(FARM.upiName + '  ·  Paytm / any UPI app', qx + qw / 2, fy + 11 + qImgH + 22, { align: 'center' });
   }
 
   const bx = W - 40 - 240;
@@ -236,13 +306,27 @@ export async function downloadBillPdf(bill: Bill) {
     doc.text(value, bx + bw, fy + offset, { align: 'right' });
   };
 
-  row('Period purchases', money(bill.periodTotal), 0);
-  row('Period payments', money(bill.periodPaid), 16);
-  row('Total purchases (all time)', money(bill.lifetimePurchases), 32);
-  row('Total paid (all time)', money(bill.lifetimePaid), 48);
+  const prevBalance = Math.round(((bill as any).previousBalance || 0) * 100) / 100;
+  let off = 0;
+  if (prevBalance > 0) {
+    const cutoff = new Date(bill.from);
+    cutoff.setDate(cutoff.getDate() - 1);
+    const cutoffLabel = String(cutoff.getDate()).padStart(2, '0') + '-' +
+      String(cutoff.getMonth() + 1).padStart(2, '0') + '-' + cutoff.getFullYear();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(178, 74, 56);
+    doc.text('Previous balance (dues till ' + cutoffLabel + ')', bx, fy);
+    doc.text(money(prevBalance), bx + bw, fy, { align: 'right' });
+    off = 16;
+  }
+  row('Period purchases', money(bill.periodTotal), off);
+  row('Period payments', money(bill.periodPaid), off + 16);
+  row('Total purchases (all time)', money(bill.lifetimePurchases), off + 32);
+  row('Total paid (all time)', money(bill.lifetimePaid), off + 48);
 
-  // outstanding pill
-  const pillY = fy + 62;
+  // outstanding pill — the closing figure spelled out from its parts
+  const pillY = fy + off + 62;
   doc.setFillColor(DARK[0], DARK[1], DARK[2]);
   doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
   doc.setLineWidth(1.2);
@@ -250,35 +334,39 @@ export async function downloadBillPdf(bill: Bill) {
   doc.setTextColor(GOLD_BRIGHT[0], GOLD_BRIGHT[1], GOLD_BRIGHT[2]);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.text('OUTSTANDING (TOTAL DUE)', bx + 14, pillY + 17);
+  doc.text(prevBalance > 0 ? 'TOTAL DUE (incl. previous balance)' : 'OUTSTANDING (TOTAL DUE)', bx + 14, pillY + 17);
   const oc = bill.outstanding > 0 ? RED_ON_DARK : GREEN_ON_DARK;
   doc.setTextColor(oc[0], oc[1], oc[2]);
   doc.setFontSize(14.5);
   doc.text(money(bill.outstanding), bx + bw - 14, pillY + 32, { align: 'right' });
 
   // signature block (left)
-  const sigY = pillY + 34;
+  // The scan-and-pay box now owns the left column, so the signatory block
+  // moves under the outstanding pill on the right — the usual invoice corner.
+  // Pill is 44pt tall; 24pt of clear air before "For …", then the usual
+  // signature stack — nothing touches the pill any more.
+  const sigY = pillY + 44 + 24 + 58;
   doc.setTextColor(INK[0], INK[1], INK[2]);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text('For ' + FARM.name, 40, signature ? sigY - 58 : sigY - 24);
+  doc.text('For ' + FARM.name, bx + bw, signature ? sigY - 58 : sigY - 24, { align: 'right' });
   if (signature) {
     try {
       const props = doc.getImageProperties(signature);
       const sw = 118;
       const sh = (props.height / props.width) * sw;
       // ink sits just above the signatory rule
-      doc.addImage(signature, 'PNG', 46, sigY - 8 - sh, sw, sh);
+      doc.addImage(signature, 'PNG', bx + bw - sw, sigY - 8 - sh, sw, sh);
     } catch {
       /* fall back to the plain line */
     }
   }
   doc.setDrawColor(150, 142, 120);
   doc.setLineWidth(0.8);
-  doc.line(40, sigY, 190, sigY);
+  doc.line(bx + bw - 150, sigY, bx + bw, sigY);
   doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
   doc.setFontSize(8.2);
-  doc.text('Authorised Signatory', 40, sigY + 12);
+  doc.text('Authorised Signatory', bx + bw, sigY + 12, { align: 'right' });
 
   // ============ footer (on every page) ============
   const pageCount = doc.getNumberOfPages();
@@ -292,10 +380,11 @@ export async function downloadBillPdf(bill: Bill) {
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
     doc.text('Thank you for choosing ' + FARM.name + ' — ' + FARM.tagline2, W / 2, H - 40, { align: 'center' });
     doc.setFontSize(7.6);
-    doc.text('Instagram: @aryavart_farm   ·   YouTube: @aryavartdairyfarm   ·   ' + FARM.phone, W / 2, H - 28, { align: 'center' });
+    doc.text('FSSAI Lic. No. ' + FARM.fssai + '   ·   Instagram: @aryavart_farm   ·   ' + FARM.phone, W / 2, H - 28, { align: 'center' });
     doc.text('Page ' + i + ' / ' + pageCount, W - 40, H - 28, { align: 'right' });
   }
 
   const safeName = (bill.customerName || 'customer').replace(/[^a-zA-Z0-9]+/g, '_');
-  doc.save('ADF-Bill-' + safeName + '-' + bill.from + '_to_' + bill.to + '.pdf');
+  const filename = 'ADF-Bill-' + safeName + '-' + bill.from + '_to_' + bill.to + '.pdf';
+  return { doc, filename };
 }

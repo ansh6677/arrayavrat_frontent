@@ -15,6 +15,7 @@ import { OverviewComponent } from './management/overview.component';
 import { CustomersComponent } from './management/customers.component';
 import { CustomerDetailComponent } from './management/customer-detail.component';
 import { ExpensesComponent } from './management/expenses.component';
+import { ExtraSalesComponent } from './management/extra-sales.component';
 import { ProductsAdminComponent } from './management/products-admin.component';
 import { StaffComponent } from './management/staff.component';
 
@@ -40,6 +41,7 @@ export const routes: Routes = [
       { path: 'customers', component: CustomersComponent },
       { path: 'customers/:id', component: CustomerDetailComponent },
       { path: 'expenses', component: ExpensesComponent },
+      { path: 'extra-sales', component: ExtraSalesComponent },
       { path: 'products', component: ProductsAdminComponent },
       { path: 'staff', component: StaffComponent, canActivate: [fullAdminGuard] }
     ]

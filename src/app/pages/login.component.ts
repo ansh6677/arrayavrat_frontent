@@ -28,7 +28,7 @@ import { FARM } from '../core/farm';
             <div class="field">
               <label for="phone">Phone number</label>
               <input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="username"
-                     [(ngModel)]="phone" placeholder="e.g. 9876543210" required />
+                     [(ngModel)]="phone" placeholder="Your 10-digit mobile number" required />
             </div>
             <div class="field">
               <label for="password">Password</label>
