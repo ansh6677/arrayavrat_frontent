@@ -208,15 +208,6 @@ export class BillViewComponent {
     return `${dd}-${mm}-${d.getFullYear()}`;
   }
 
-  /** dd-mm-yyyy of the day before an ISO date — labels the previous-balance cutoff. */
-  dayBefore(iso: string): string {
-    const d = new Date(iso);
-    d.setDate(d.getDate() - 1);
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    return `${dd}-${mm}-${d.getFullYear()}`;
-  }
-
   /**
    * Shares the actual PDF. Where the browser supports sharing files (Windows
    * Chrome/Edge, Android, iPhone, Mac) the system share sheet opens with the
@@ -248,13 +239,6 @@ export class BillViewComponent {
       if ((e as { name?: string })?.name === 'AbortError') return;   // user closed the sheet
       /* fall through to the download-and-chat path */
     }
-    // No detail dump in the chat — everything lives in the PDF. Just a short
-    // courtesy line; the admin attaches the freshly downloaded file.
-    const lines = [
-      `Namaste ${b.customerName} ji! Your ${FARM.name} bill for ` +
-      `${niceDate(b.from)} to ${niceDate(b.to)} is attached as a PDF. Thank you!`
-    ];
-    this.toast.info('Bill PDF downloaded ✓ — WhatsApp opened. Attach the PDF from Downloads and send.', 6500);
 
     // Fallback: save the PDF, then open the customer's chat with the summary.
     try {
