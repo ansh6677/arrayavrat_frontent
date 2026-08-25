@@ -6,7 +6,8 @@ import { ApiService } from '../core/api.service';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
-import { UserInfo } from '../core/models';
+import { LoginActivity, LoginEvent, UserInfo } from '../core/models';
+import { relTime } from '../core/farm';
 import { IconComponent } from '../shared/icon.component';
 
 /** Panel logins: ADMIN = full access, VIEWER = read-only. */
@@ -20,6 +21,40 @@ import { IconComponent } from '../shared/icon.component';
       Control who can sign in to this panel. A <b>Full access</b> login can add, edit and delete;
       a <b>View only</b> login can see everything but change nothing.
     </p>
+
+    <!-- ============ sign-in activity ============ -->
+    <div class="who-grid">
+      <div class="who-card">
+        <div class="who-head">
+          <span class="who-ic who-mgmt"><app-icon name="shield" [size]="16" /></span>
+          <span class="who-title">Last management sign-in</span>
+        </div>
+        @if (activity?.lastManagement; as e) {
+          <div class="who-name">{{ e.name }}
+            @if (e.role === 'ADMIN') { <span class="badge badge-gold">Full access</span> }
+            @else { <span class="badge badge-off">View only</span> }
+          </div>
+          <div class="who-meta">{{ rel(e.at) }} · {{ e.device || 'Unknown device' }}</div>
+          <div class="who-exact">{{ e.at | date: 'dd MMM y, h:mm a' }}</div>
+        } @else {
+          <div class="who-empty">No management sign-ins recorded yet.</div>
+        }
+      </div>
+
+      <div class="who-card">
+        <div class="who-head">
+          <span class="who-ic who-cust"><app-icon name="user" [size]="16" /></span>
+          <span class="who-title">Last customer sign-in</span>
+        </div>
+        @if (activity?.lastCustomer; as e) {
+          <div class="who-name">{{ e.name }} <span class="who-phone">{{ e.loginId }}</span></div>
+          <div class="who-meta">{{ rel(e.at) }} · {{ e.device || 'Unknown device' }}</div>
+          <div class="who-exact">{{ e.at | date: 'dd MMM y, h:mm a' }}</div>
+        } @else {
+          <div class="who-empty">No customer sign-ins recorded yet.</div>
+        }
+      </div>
+    </div>
 
     <div class="panel">
       <div class="toolbar">
@@ -36,7 +71,7 @@ import { IconComponent } from '../shared/icon.component';
         <div class="tbl-wrap">
           <table class="tbl">
             <thead>
-              <tr><th>Name</th><th>Login ID</th><th>Access</th><th>Status</th><th class="right">Actions</th></tr>
+              <tr><th>Name</th><th>Login ID</th><th>Access</th><th>Status</th><th>Last sign-in</th><th class="right">Actions</th></tr>
             </thead>
             <tbody>
               @for (s of staff; track s.id) {
@@ -51,19 +86,44 @@ import { IconComponent } from '../shared/icon.component';
                     @if (s.active) { <span class="badge badge-ok">Active</span> }
                     @else { <span class="badge badge-off">Inactive</span> }
                   </td>
+                  <td class="muted" [title]="s.lastLoginAt ? (s.lastLoginAt | date: 'dd MMM y, h:mm a') : ''">
+                    {{ rel(s.lastLoginAt) }}
+                  </td>
                   <td class="right actions">
-                    <button class="btn btn-outline btn-sm" (click)="openEdit(s)">
-                      <app-icon name="edit" [size]="14" /> Edit
-                    </button>
-                    <button class="btn btn-danger btn-sm" (click)="remove(s)">
-                      <app-icon name="trash" [size]="14" /> Delete
-                    </button>
+                    @if (s.superAdmin) {
+                      <span class="badge badge-gold" title="Managed only from the server's .env file">
+                        <app-icon name="shield" [size]="12" /> System
+                      </span>
+                    } @else {
+                      <button class="btn btn-outline btn-sm" (click)="openEdit(s)">
+                        <app-icon name="edit" [size]="14" /> Edit
+                      </button>
+                      <button class="btn btn-danger btn-sm" (click)="remove(s)">
+                        <app-icon name="trash" [size]="14" /> Delete
+                      </button>
+                    }
                   </td>
                 </tr>
               }
             </tbody>
           </table>
         </div>
+      @if (activity && activity.recent.length > 0) {
+        <h3 class="feed-h">Recent sign-ins</h3>
+        <ul class="feed">
+          @for (e of activity.recent; track e.id) {
+            <li class="feed-row">
+              <span class="dot" [class.dot-cust]="e.side === 'CUSTOMER'"></span>
+              <span class="feed-name">{{ e.name }}</span>
+              @if (e.side === 'MANAGEMENT') { <span class="src-tag src-adf">Panel</span> }
+              @else { <span class="src-tag src-page">Customer</span> }
+              <span class="feed-meta">{{ e.device || 'Unknown device' }}</span>
+              <span class="feed-time" [title]="e.at | date: 'dd MMM y, h:mm a'">{{ rel(e.at) }}</span>
+            </li>
+          }
+        </ul>
+      }
+
         <p class="hint mt">
           The primary administrator account is system-managed and cannot be edited or deleted.
         </p>
@@ -121,6 +181,42 @@ import { IconComponent } from '../shared/icon.component';
     }
   `,
   styles: [`
+    .who-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .who-card {
+      border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 16px 18px;
+      background: linear-gradient(160deg, rgba(201, 162, 39, 0.05), rgba(16, 14, 8, 0.4));
+    }
+    .who-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+    .who-ic {
+      width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+      border: 1px solid rgba(228, 199, 102, 0.4); color: var(--gold-2);
+    }
+    .who-cust { border-color: rgba(143, 199, 232, 0.4); color: #8FC7E8; }
+    .who-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .who-name { font-family: var(--font-display); font-size: 1.12rem; color: var(--ivory); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .who-phone { font-family: var(--font-body); font-size: 0.82rem; color: var(--muted); }
+    .who-meta { font-size: 0.84rem; color: var(--gold-2); margin-top: 4px; }
+    .who-exact { font-size: 0.74rem; color: var(--muted); margin-top: 2px; }
+    .who-empty { font-size: 0.86rem; color: var(--muted); }
+    .feed-h { margin: 20px 0 10px; font-size: 0.95rem; color: var(--gold-2); }
+    .feed { list-style: none; margin: 0; padding: 0; }
+    .feed-row {
+      display: flex; align-items: center; gap: 10px; padding: 8px 2px;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.06); font-size: 0.86rem; flex-wrap: wrap;
+    }
+    .feed-row:last-child { border-bottom: none; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
+    .dot-cust { background: #8FC7E8; }
+    .feed-name { color: var(--ivory); font-weight: 600; }
+    .feed-meta { color: var(--muted); }
+    .feed-time { margin-left: auto; color: var(--muted); font-size: 0.78rem; }
+    .src-tag {
+      font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+      border-radius: 999px; padding: 2px 8px;
+    }
+    .src-adf { color: var(--gold-2); border: 1px solid rgba(228, 199, 102, 0.4); }
+    .src-page { color: #8FC7E8; border: 1px solid rgba(143, 199, 232, 0.4); }
+
     .actions { white-space: nowrap; }
     .actions .btn { margin-left: 6px; }
   `]
@@ -142,8 +238,12 @@ export class StaffComponent implements OnInit {
 
   form: any = this.blank();
 
+  activity: LoginActivity | null = null;
+  rel = relTime;
+
   ngOnInit() {
     this.load();
+    this.api.getLoginActivity().subscribe({ next: a => (this.activity = a) });
   }
 
   private blank() {

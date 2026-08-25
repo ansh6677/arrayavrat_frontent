@@ -163,7 +163,6 @@ export class ExpensesComponent implements OnInit {
   expenses: Expense[] = [];
   from = monthStart();
   to = isoDate();
-
   categories = [
     'Cow Milk',
     'Buffalo Milk',

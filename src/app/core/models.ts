@@ -21,6 +21,10 @@ export interface UserInfo {
   address?: string;
   role: string;      // ADMIN | VIEWER | CUSTOMER
   active: boolean;
+  /** The .env-managed primary administrator — locked against all edits. */
+  superAdmin?: boolean;
+  /** Stamped by the backend on every successful sign-in. */
+  lastLoginAt?: string;
   /** PAGE = self-registered on the website, ADF = added by the farm. */
   signupSource?: string;
   /** Products this customer usually takes — pre-ticked in the daily entry sheet. */
@@ -222,4 +226,23 @@ export interface Stats {
   monthly: DatePoint[];
   /** Dropdown options for the last 12 months. */
   months: MonthOption[];
+}
+
+
+/** One successful sign-in — the Login Management activity feed. */
+export interface LoginEvent {
+  id: string;
+  userId: string;
+  name: string;
+  loginId: string;
+  role: string;
+  side: 'CUSTOMER' | 'MANAGEMENT';
+  device?: string;
+  at: string;
+}
+
+export interface LoginActivity {
+  lastManagement: LoginEvent | null;
+  lastCustomer: LoginEvent | null;
+  recent: LoginEvent[];
 }

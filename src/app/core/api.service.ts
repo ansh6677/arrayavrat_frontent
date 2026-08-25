@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 
 import { API_URL } from './farm';
-import { Bill, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, Payment, Product, Stats, UserInfo } from './models';
+import { Bill, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Payment, Product, Stats, UserInfo } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -160,6 +160,11 @@ export class ApiService {
   }
 
   // ---------------- Admin: stats ----------------
+
+  /** Last sign-in per side + the recent feed (Login Management). */
+  getLoginActivity() {
+    return this.http.get<LoginActivity>(`${API_URL}/admin/logins`);
+  }
 
   // ---------------- extra (walk-in) sales ----------------
 

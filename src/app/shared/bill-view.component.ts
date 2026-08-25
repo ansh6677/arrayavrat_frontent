@@ -2,8 +2,8 @@ import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { Bill, DailyEntry, Payment } from '../core/models';
-import { FARM, niceDate } from '../core/farm';
-import { billPdfFile, downloadBillPdf } from '../core/pdf';
+import { FARM, niceDate, upiPayLink } from '../core/farm';
+import { downloadBillPdf } from '../core/pdf';
 import { ToastService } from '../core/toast.service';
 import { IconComponent } from './icon.component';
 
@@ -149,6 +149,12 @@ import { IconComponent } from './icon.component';
     </div>
 
     <div class="mt no-print bill-actions">
+      @if (bill.outstanding > 0) {
+        <button class="btn btn-wa pay-btn" (click)="payNow()"
+                title="Opens your UPI app with ₹{{ bill.outstanding }} pre-filled">
+          <app-icon name="wallet" [size]="16" /> Pay ₹{{ bill.outstanding | number: '1.0-2' }} via UPI
+        </button>
+      }
       <button class="btn btn-primary" (click)="pdf()" [disabled]="pdfBusy">
         @if (pdfBusy) { <span class="spinner"></span> }
         <app-icon name="download" [size]="16" /> Download PDF
@@ -161,6 +167,8 @@ import { IconComponent } from './icon.component';
     </div>
   `,
   styles: [`
+    .pay-btn { background: linear-gradient(135deg, #2BB673, #1E9E62); border-color: transparent; }
+
     /* The action row wraps instead of colliding when space runs out. */
     .bill-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; align-items: center; }
 
@@ -199,6 +207,20 @@ export class BillViewComponent {
     }
   }
 
+  /**
+   * On a phone this opens the UPI app with the exact due pre-filled; on a
+   * desktop (no upi:// handler) the UPI id is copied instead, with a toast.
+   */
+  payNow() {
+    const b = this.bill;
+    const link = upiPayLink(b.outstanding, `${FARM.name} bill ${b.to}`);
+    try {
+      navigator.clipboard?.writeText(FARM.upiId).catch(() => {});
+    } catch { /* clipboard is best-effort */ }
+    window.location.href = link;
+    this.toast.info(`Opening your UPI app for ₹${b.outstanding}… On a computer, pay to ${FARM.upiId} (copied).`, 6500);
+  }
+
   /** dd-mm-yyyy of the day before an ISO date — labels the previous-balance cutoff. */
   dayBefore(iso: string): string {
     const d = new Date(iso);
@@ -209,60 +231,48 @@ export class BillViewComponent {
   }
 
   /**
-   * Shares the actual PDF. Where the browser supports sharing files (Windows
-   * Chrome/Edge, Android, iPhone, Mac) the system share sheet opens with the
-   * PDF attached — pick WhatsApp, pick the customer, send. Where it doesn't,
-   * the PDF is downloaded and the customer's chat opens with the summary and
-   * a note to attach the file.
+   * One tap → the RIGHT chat, every time. wa.me can open a specific number but
+   * can never attach a file, and the system share sheet can attach the file
+   * but can never pick the contact — so this does the half a computer is
+   * allowed to do automatically (download the PDF + open the customer's own
+   * chat with a note) and leaves one human step: attach and send.
    */
   async shareOnWhatsApp() {
     if (this.shareBusy) return;
     this.shareBusy = true;
-    try {
+
+    // Open the tab NOW, inside the click, so popup blockers stay quiet;
+    // the address is filled in once the PDF is ready.
+    const win = window.open('about:blank', '_blank');
+
     const b = this.bill;
-
-    try {
-      const file = await billPdfFile(b);
-      const nav = navigator as Navigator & {
-        canShare?: (data: { files: File[] }) => boolean;
-        share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
-      };
-      if (nav.canShare && nav.share && nav.canShare({ files: [file] })) {
-        await nav.share({
-          files: [file],
-          title: `${FARM.name} — Bill`,
-          text: `Bill for ${b.customerName} · ${niceDate(b.from)} to ${niceDate(b.to)} (PDF attached)`
-        });
-        return;                                   // real PDF handed to WhatsApp
-      }
-    } catch (e) {
-      if ((e as { name?: string })?.name === 'AbortError') return;   // user closed the sheet
-      /* fall through to the download-and-chat path */
-    }
-
-    // Fallback: save the PDF, then open the customer's chat with the summary.
     try {
       await downloadBillPdf(b);
+      this.toast.info(
+        `Bill PDF downloaded ✓ — ${b.customerName}'s WhatsApp chat is opening. ` +
+        'Attach the PDF (📎 → Document → the newest file) and send.', 8000);
     } catch {
-      /* PDF failed — still open the chat with the text summary */
+      this.toast.error('The PDF could not be generated — sending the note only.');
     }
-    // No detail dump in the chat — everything lives in the PDF. Just a short
-    // courtesy line; the admin attaches the freshly downloaded file.
-    const lines = [
-      `Namaste ${b.customerName} ji! Your ${FARM.name} bill for ` +
-      `${niceDate(b.from)} to ${niceDate(b.to)} is attached as a PDF. Thank you!`
-    ];
-    this.toast.info('Bill PDF downloaded ✓ — WhatsApp opened. Attach the PDF from Downloads and send.', 6500);
 
-    // Indian numbers are stored as 10 digits; WhatsApp needs the country code.
+    const note =
+      `Namaste ${b.customerName} ji! Your ${FARM.name} bill for ` +
+      `${niceDate(b.from)} to ${niceDate(b.to)} is attached as a PDF.` +
+      (b.outstanding > 0
+        ? `\n\nPay instantly (₹${b.outstanding}): ${upiPayLink(b.outstanding, FARM.name + ' bill ' + b.to)}`
+        : '') +
+      '\nThank you!';
+
+    // Registered numbers are 10 digits; wa.me needs the country code.
     const digits = String(b.phone || '').replace(/\D/g, '');
     const number = digits.length === 10 ? `91${digits}` : digits;
-    const url = `https://wa.me/${number}?text=${encodeURIComponent(lines.join('\n'))}`;
+    const url = `https://wa.me/${number}?text=${encodeURIComponent(note)}`;
 
-    const win = window.open(url, '_blank');
-    if (!win) window.location.href = url;         // popup blocked — last resort
-    } finally {
-      this.shareBusy = false;
+    if (win) {
+      win.location.href = url;
+    } else {
+      window.location.href = url;              // popup blocked — last resort
     }
+    this.shareBusy = false;
   }
 }
