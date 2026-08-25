@@ -52,11 +52,19 @@ import { IconComponent } from '../shared/icon.component';
         <div class="tbl-wrap">
           <table class="tbl">
             <thead>
-              <tr><th>Customer</th><th>Phone</th><th>Address</th><th>Status</th><th class="right">Open</th></tr>
+              <tr><th class="qe-head" aria-label="Quick daily entry"></th><th>Customer</th><th>Phone</th><th>Address</th><th>Status</th><th class="right">Open</th></tr>
             </thead>
             <tbody>
               @for (c of filtered(); track c.id) {
                 <tr class="row-click" (click)="open(c)">
+                  <!-- First AND pinned-left: instantly visible on a phone, and it
+                       stays put even when the table is scrolled sideways. -->
+                  <td class="qe-cell">
+                    <button type="button" class="qe-btn" (click)="quickEntry(c, $event)"
+                            title="Add a daily entry" aria-label="Add a daily entry">
+                      <app-icon name="plus" [size]="15" [stroke]="2.6" />
+                    </button>
+                  </td>
                   <td>
                     <span class="cust">
                       <span class="cust-av">{{ initials(c.name) }}</span>
@@ -72,10 +80,6 @@ import { IconComponent } from '../shared/icon.component';
                     @else { <span class="badge badge-off">Inactive</span> }
                   </td>
                   <td class="right row-actions">
-                    <button type="button" class="qe-btn" (click)="quickEntry(c, $event)"
-                            title="Add a daily entry" aria-label="Add a daily entry">
-                      <app-icon name="plus" [size]="14" [stroke]="2.6" />
-                    </button>
                     <span class="btn btn-outline btn-sm">Open <app-icon name="arrow-right" [size]="14" /></span>
                   </td>
                 </tr>
@@ -169,8 +173,16 @@ import { IconComponent } from '../shared/icon.component';
     .src-adf { color: var(--gold-2); border: 1px solid rgba(228, 199, 102, 0.4); }
     .src-page { color: #8FC7E8; border: 1px solid rgba(143, 199, 232, 0.4); }
     .row-actions { white-space: nowrap; }
+    .qe-head, .qe-cell {
+      position: sticky; left: 0; width: 54px; min-width: 54px; text-align: center;
+    }
+    thead .qe-head { z-index: 3; background: #100E08; }
+    .qe-cell {
+      z-index: 2; background: var(--surface);
+      box-shadow: 12px 0 14px -12px rgba(0, 0, 0, 0.65);
+    }
     .qe-btn {
-      width: 36px; height: 36px; border-radius: 50%; margin-right: 8px; cursor: pointer;
+      width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
       border: 1.5px solid var(--gold); background: transparent; color: var(--gold-2);
       display: inline-grid; place-items: center; vertical-align: middle;
       transition: background 0.15s ease, transform 0.15s ease;

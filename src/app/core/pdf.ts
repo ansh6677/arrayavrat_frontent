@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-import { FARM, niceDate } from './farm';
+import { FARM, niceDate, upiPayLink } from './farm';
 import { Bill } from './models';
 
 const GOLD: [number, number, number] = [201, 162, 39];
@@ -260,7 +260,7 @@ async function buildBillPdf(bill: Bill) {
   // ============ totals + outstanding + signature ============
   // The scan-and-pay box on the left is the tallest thing here, so the
   // page-break check reserves enough room for it.
-  if (fy > H - 280) {
+  if (fy > H - 302) {
     doc.addPage();
     fy = 64;
   }
@@ -271,7 +271,8 @@ async function buildBillPdf(bill: Bill) {
     const qw = 180;
     const qImgW = 118;
     const qImgH = Math.round((qImgW * 615) / 479);   // the card's own ratio
-    const qh = qImgH + 60;
+    const hasDue = bill.outstanding > 0;
+    const qh = qImgH + (hasDue ? 88 : 60);           // room for the pay pill
 
     doc.setFillColor(253, 250, 240);
     doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
@@ -292,6 +293,21 @@ async function buildBillPdf(bill: Bill) {
     doc.setFontSize(7.2);
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
     doc.text(FARM.upiName + '  ·  Paytm / any UPI app', qx + qw / 2, fy + 11 + qImgH + 22, { align: 'center' });
+
+    // One tap on a phone opens the UPI app with the exact amount filled in.
+    if (hasDue) {
+      const payY = fy + 11 + qImgH + 30;
+      const payW = qw - 28;
+      const payX = qx + 14;
+      doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
+      doc.setDrawColor(GOLD_DEEP[0], GOLD_DEEP[1], GOLD_DEEP[2]);
+      doc.roundedRect(payX, payY, payW, 20, 10, 10, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.6);
+      doc.setTextColor(23, 19, 7);
+      doc.text('TAP TO PAY  ' + money(bill.outstanding), qx + qw / 2, payY + 13, { align: 'center' });
+      doc.link(payX, payY, payW, 20, { url: upiPayLink(bill.outstanding, FARM.name + ' bill ' + bill.to) });
+    }
   }
 
   const bx = W - 40 - 240;
@@ -379,8 +395,33 @@ async function buildBillPdf(bill: Bill) {
     doc.setFontSize(8.4);
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
     doc.text('Thank you for choosing ' + FARM.name + ' — ' + FARM.tagline2, W / 2, H - 40, { align: 'center' });
+    // Second row: licence + tappable links. textWithLink cannot centre-align,
+    // so the segments are measured and laid out from a computed start point —
+    // gold for the links, muted for the rest.
     doc.setFontSize(7.6);
-    doc.text('FSSAI Lic. No. ' + FARM.fssai + '   ·   Instagram: @aryavart_farm   ·   ' + FARM.phone, W / 2, H - 28, { align: 'center' });
+    const sep = '   ·   ';
+    const segments: { text: string; url?: string }[] = [
+      { text: 'FSSAI Lic. No. ' + FARM.fssai },
+      { text: sep },
+      { text: FARM.websiteLabel, url: FARM.website },
+      { text: sep },
+      { text: '@aryavart_farm', url: FARM.instagram },
+      { text: sep },
+      { text: FARM.phone }
+    ];
+    const rowWidth = segments.reduce((w, seg) => w + doc.getTextWidth(seg.text), 0);
+    let sx = (W - rowWidth) / 2;
+    for (const seg of segments) {
+      if (seg.url) {
+        doc.setTextColor(GOLD_DEEP[0], GOLD_DEEP[1], GOLD_DEEP[2]);
+        doc.textWithLink(seg.text, sx, H - 28, { url: seg.url });
+      } else {
+        doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+        doc.text(seg.text, sx, H - 28);
+      }
+      sx += doc.getTextWidth(seg.text);
+    }
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
     doc.text('Page ' + i + ' / ' + pageCount, W - 40, H - 28, { align: 'right' });
   }
 

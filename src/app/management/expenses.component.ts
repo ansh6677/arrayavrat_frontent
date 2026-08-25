@@ -163,15 +163,15 @@ export class ExpensesComponent implements OnInit {
   expenses: Expense[] = [];
   from = monthStart();
   to = isoDate();
-
   categories = [
-    'Cattle Feed',
-    'Labour / Salary',
-    'Medicine & Vet',
-    'Transport / Fuel',
+    'Cow Milk',
+    'Buffalo Milk',
+    'Panner',
+    'Ghee',
     'Electricity',
     'Equipment',
     'Rent',
+    'transport',
     'Other'
   ];
 

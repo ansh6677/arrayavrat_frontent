@@ -241,7 +241,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 
 /* ---------- tables ---------- */
 .tbl-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--line-soft); background: var(--surface); }
-table.tbl { width: 100%; border-collapse: collapse; font-size: 0.95rem; min-width: 560px; }
+/* border-collapse: separate (with zero spacing) renders identically but lets
+   position: sticky work on cells — used by the pinned quick-entry column. */
+table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.95rem; min-width: 560px; }
 table.tbl th {
   text-align: left;
   background: #100E08;

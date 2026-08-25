@@ -1,7 +1,16 @@
 /** Backend API base URL — set your server URL in production. */
-export const API_URL = 'https://arryavrat-backend.onrender.com/api';
+const FORCE_API = '';
+const IS_LOCAL = typeof location !== 'undefined'
+  && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
 
-/** All brand, contact and imagery constants in one place. */
+/*
+ * 127.0.0.1 — not "localhost" — on purpose: Chrome sometimes force-upgrades
+ * http://localhost to https (HSTS) and the plain-HTTP dev backend then fails
+ * with ERR_SSL_PROTOCOL_ERROR. The raw IP is never upgraded.
+ */
+export const API_URL = FORCE_API
+  || (IS_LOCAL ? 'http://127.0.0.1:8080/api' : 'https://arryavrat-backend.onrender.com/api');
+
 export const FARM = {
   name: 'Aryavart Dairy Farm',
   shortName: 'ADF',
@@ -64,6 +73,9 @@ export const FARM = {
     'https://maps.google.com/maps?ll=26.145906,85.388088&q=26.145677,85.388453&z=17&output=embed',
   mapLink: 'https://www.google.com/maps/dir/?api=1&destination=26.145677,85.388453',
   instagram: 'https://www.instagram.com/aryavart_farm',
+  /** The live site — printed (and tappable) on every bill. */
+  website: 'https://www.aryavartdairyfarm.com/',
+  websiteLabel: 'www.aryavartdairyfarm.com',
   youtube: 'https://youtube.com/@aryavartdairyfarm',
   timing: 'Fresh delivery every morning & evening — within 2 hours of milking'
 };
@@ -234,6 +246,38 @@ export function isoDate(d: Date = new Date()): string {
 }
 
 /** First day of the current month (YYYY-MM-DD). */
+/** "just now", "5m ago", "3h ago", "Yesterday", "12 Aug" — feed-style times. */
+/**
+ * A UPI deep link with the exact amount pre-filled — one tap opens
+ * GPay/PhonePe/Paytm ready to pay. Works wherever the link is tapped on a
+ * phone (PDF, WhatsApp, the site); on a desktop it simply does nothing,
+ * which callers should handle with a copy-the-id fallback.
+ */
+export function upiPayLink(amount: number, note = `${FARM.name} bill`): string {
+  const amt = (Math.round(amount * 100) / 100).toFixed(2);
+  return 'upi://pay'
+    + '?pa=' + encodeURIComponent(FARM.upiId)
+    + '&pn=' + encodeURIComponent(FARM.upiName)
+    + '&am=' + amt
+    + '&cu=INR'
+    + '&tn=' + encodeURIComponent(note.slice(0, 40));
+}
+
+export function relTime(iso?: string | null): string {
+  if (!iso) return '—';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '—';
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
 export function monthStart(): string {
   const d = new Date();
   return isoDate(new Date(d.getFullYear(), d.getMonth(), 1));
