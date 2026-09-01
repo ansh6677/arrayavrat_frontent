@@ -13,7 +13,7 @@ const MUTED: [number, number, number] = [120, 113, 96];
 const IVORY: [number, number, number] = [238, 231, 210];
 const CREAM: [number, number, number] = [247, 241, 226];
 const CREAM_ROW: [number, number, number] = [251, 247, 238];
-/** Old-payment rows print in amber so past-month dues stand out at a glance. */
+/** Old-due rows print in amber so past-month pending khata stands out at a glance. */
 const AMBER_FILL: [number, number, number] = [252, 234, 208];
 const AMBER_TEXT: [number, number, number] = [146, 92, 20];
 const RED_ON_DARK: [number, number, number] = [242, 130, 112];
@@ -206,14 +206,32 @@ async function buildBillPdf(bill: Bill) {
   autoTable(doc, {
     startY: 252,
     head: [['#', 'Date', 'Product', 'Qty', 'Rate', 'Amount']],
-    body: bill.entries.map((e, i) => [
-      String(i + 1),
-      niceDate(e.entryDate),
-      (e.productName || '') + (e.paid ? '  [PAID]' : '') + (e.note ? '  (' + e.note + ')' : ''),
-      (Math.round(e.quantity * 100) / 100) + ' ' + (e.unit || ''),
-      money(e.rate),
-      money(e.total)
-    ]),
+    body: bill.entries.map((e, i) => {
+      if (e.oldDue) {
+        // A past month's pending amount — amber, no product/qty/rate,
+        // clearly a DUE (it is never tagged [PAID]).
+        const oldStyle = { fillColor: AMBER_FILL, textColor: AMBER_TEXT };
+        const label = 'OLD DUE (' + monthLabel(e.forPeriod) + ')' + (e.note ? ' — ' + e.note : '');
+        const cell = (content: string, extra?: Record<string, unknown>) =>
+          ({ content, styles: { ...oldStyle, ...(extra || {}) } });
+        return [
+          cell(String(i + 1)),
+          cell(niceDate(e.entryDate)),
+          cell(label, { fontStyle: 'bold' }),
+          cell('—', { halign: 'right' }),
+          cell('—', { halign: 'right' }),
+          cell(money(e.total))
+        ];
+      }
+      return [
+        String(i + 1),
+        niceDate(e.entryDate),
+        (e.productName || '') + (e.paid ? '  [PAID]' : '') + (e.note ? '  (' + e.note + ')' : ''),
+        (Math.round(e.quantity * 100) / 100) + ' ' + (e.unit || ''),
+        money(e.rate),
+        money(e.total)
+      ];
+    }),
     foot: [[{ content: 'Total purchases (this period)', colSpan: 5, styles: { halign: 'right' } }, money(bill.periodTotal)]],
     theme: 'grid',
     styles: { font: 'helvetica', fontSize: 9, textColor: INK, lineColor: [229, 221, 199], lineWidth: 0.4, cellPadding: 6 },
@@ -249,22 +267,13 @@ async function buildBillPdf(bill: Bill) {
     const withEntryTotal =
       Math.round(withEntry.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
 
-    const paymentRows: any[] = standalone.map((p, i) => {
-      const isOld = !!p.forPeriod;
-      const note = isOld
-        ? 'OLD DUES (' + monthLabel(p.forPeriod) + ')' + (p.note ? ' — ' + p.note : '')
-        : (p.note || '-');
-      const oldStyle = { fillColor: AMBER_FILL, textColor: AMBER_TEXT };
-      const cell = (content: string, extra?: Record<string, unknown>) =>
-        isOld ? { content, styles: { ...oldStyle, ...(extra || {}) } } : content;
-      return [
-        cell(String(i + 1)),
-        cell(niceDate(p.paymentDate)),
-        cell(p.mode || ''),
-        cell(note, isOld ? { fontStyle: 'bold' } : undefined),
-        cell(money(p.amount))
-      ];
-    });
+    const paymentRows: any[] = standalone.map((p, i) => [
+      String(i + 1),
+      niceDate(p.paymentDate),
+      p.mode || '',
+      p.note || '-',
+      money(p.amount)
+    ]);
     if (withEntry.length > 0) {
       paymentRows.push([
         {

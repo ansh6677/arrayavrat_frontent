@@ -186,41 +186,49 @@ export interface Review {
   area: string;
   stars: 4 | 5;
   text: string;
+  /** Bundled portrait (assets/reviews/...). Swap with real customer photos anytime. */
+  photo: string;
 }
 
 export const REVIEWS: Review[] = [
   {
     name: 'Ramesh Prasad',
+    photo: 'assets/reviews/ramesh.jpg',
     area: 'Ahiyapur, Muzaffarpur',
     stars: 5,
     text: 'Milk reaches our home every morning before 7 — still fresh from milking. The cream on top reminds me of my village days.'
   },
   {
     name: 'Sunita Devi',
+    photo: 'assets/reviews/sunita.jpg',
     area: 'Mithanpura',
     stars: 5,
     text: 'My kids only drink Aryavart A2 milk now. The matka curd is thick and naturally sweet — no comparison with packet dahi.'
   },
   {
     name: 'Amit Kumar Jha',
+    photo: 'assets/reviews/amit.jpg',
     area: 'Bela Industrial Area',
     stars: 4,
     text: 'Ordered bilona ghee for the whole family on WhatsApp. Confirmed in minutes, delivered the same evening. Aroma is amazing.'
   },
   {
     name: 'Pooja Singh',
+    photo: 'assets/reviews/pooja.jpg',
     area: 'Brahmpura',
     stars: 5,
     text: 'The monthly bill PDF on WhatsApp makes hisaab so easy. Pure milk, honest billing — exactly what a family needs.'
   },
   {
     name: 'Vikash Choudhary',
+    photo: 'assets/reviews/vikash.jpg',
     area: 'Saraiyaganj',
     stars: 4,
     text: 'Paneer is soft and fresh, clearly made the same day. Evening delivery slot suits our shop timings perfectly.'
   },
   {
     name: 'Nisha Kumari',
+    photo: 'assets/reviews/nisha.jpg',
     area: 'Kalambagh Road',
     stars: 5,
     text: 'We even asked for the lab certificate — they shared it happily. That confidence is why 500+ families trust this farm.'

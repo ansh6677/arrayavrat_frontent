@@ -88,6 +88,11 @@ export class ApiService {
     return this.http.post<Payment>(`${API_URL}/admin/payments`, data);
   }
 
+  /** A past month's pending amount — saved as an UNPAID entry that raises the outstanding. */
+  addOldDue(data: { customerId: string; amount: number; month: string; note?: string; requestId?: string }) {
+    return this.http.post<DailyEntry>(`${API_URL}/admin/entries/old-due`, data);
+  }
+
   getPayments(filter: { customerId?: string; from?: string; to?: string }) {
     let params = new HttpParams();
     if (filter.customerId) params = params.set('customerId', filter.customerId);

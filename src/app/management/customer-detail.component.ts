@@ -51,8 +51,8 @@ import { IconComponent } from '../shared/icon.component';
               <button class="btn btn-gold" (click)="openPayment()">
                 <app-icon name="wallet" [size]="15" /> Payment
               </button>
-              <button class="btn btn-outline btn-oldpay" (click)="openOldPayment()">
-                <app-icon name="wallet" [size]="15" /> Old payment
+              <button class="btn btn-outline btn-oldpay" (click)="openOldDue()">
+                <app-icon name="wallet" [size]="15" /> Old due
               </button>
               <button class="btn btn-outline" (click)="openEdit()">
                 <app-icon name="edit" [size]="15" /> Edit customer
@@ -246,41 +246,43 @@ import { IconComponent } from '../shared/icon.component';
       </div>
     }
 
-    <!-- ================= Old payment popup =================
-         Money received today that clears an EARLIER month's dues.
-         Deliberately only three fields: amount, which month, remarks. -->
-    @if (oldPayOpen) {
-      <div class="modal-back" (click)="oldPayOpen = false">
+    <!-- ================= Old due popup =================
+         A past month's PENDING amount (purana baaki). It is saved as an
+         unpaid entry, so the customer's outstanding goes UP — it is never
+         marked paid by itself. Three fields only: amount, month, remarks. -->
+    @if (oldDueOpen) {
+      <div class="modal-back" (click)="oldDueOpen = false">
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-head">
-            <h3>Old payment — {{ customer?.name }}</h3>
-            <button type="button" class="modal-close" (click)="oldPayOpen = false" aria-label="Close">
+            <h3>Old due — {{ customer?.name }}</h3>
+            <button type="button" class="modal-close" (click)="oldDueOpen = false" aria-label="Close">
               <app-icon name="close" [size]="16" [stroke]="2.2" />
             </button>
           </div>
           @if (modalError) { <div class="alert alert-error">{{ modalError }}</div> }
           <p class="m-note">
-            For dues of a past month. It is recorded on today's date, marked with the
-            month it clears, and shows in amber on the bill and PDF.
+            Purana baaki from a past month — it is <b>added to the outstanding</b> (not
+            marked paid) and shows in amber on the bill and PDF. Clear it later by
+            recording payments as usual.
           </p>
           <div class="form-grid">
             <div class="field">
               <label>Amount (₹) <span class="req">*</span></label>
-              <input type="number" name="oamt" [(ngModel)]="oldPayForm.amount" min="1" step="1" placeholder="e.g. 1500" />
+              <input type="number" name="oamt" [(ngModel)]="oldDueForm.amount" min="1" step="1" placeholder="e.g. 1500" />
             </div>
             <div class="field">
               <label>For month (cycle) <span class="req">*</span></label>
-              <input type="month" name="omonth" [(ngModel)]="oldPayForm.month" [max]="maxOldPayMonth" />
+              <input type="month" name="omonth" [(ngModel)]="oldDueForm.month" [max]="maxOldDueMonth" />
             </div>
             <div class="field field-wide">
               <label>Remarks</label>
-              <input name="onote" [(ngModel)]="oldPayForm.note" placeholder="e.g. July ka baaki, cash" />
+              <input name="onote" [(ngModel)]="oldDueForm.note" placeholder="e.g. Jan ka paneer baaki" />
             </div>
           </div>
           <div class="modal-actions">
-            <button class="btn btn-ghost" (click)="oldPayOpen = false">Cancel</button>
-            <button class="btn btn-gold" (click)="saveOldPayment()" [disabled]="saving">
-              @if (saving) { <span class="spinner"></span> } Save old payment
+            <button class="btn btn-ghost" (click)="oldDueOpen = false">Cancel</button>
+            <button class="btn btn-gold" (click)="saveOldDue()" [disabled]="saving">
+              @if (saving) { <span class="spinner"></span> } Save old due
             </button>
           </div>
         </div>
@@ -466,9 +468,10 @@ export class CustomerDetailComponent implements OnInit {
   private entryRequestId = '';
   quickQty = [0.5, 1, 1.5, 2];
   paymentForm = { amount: null as number | null, paymentDate: isoDate(), mode: 'Cash', note: '' };
-  oldPayOpen = false;
-  oldPayForm = { amount: null as number | null, month: '', note: '' };
-  maxOldPayMonth = isoMonth();
+  oldDueOpen = false;
+  oldDueForm = { amount: null as number | null, month: '', note: '' };
+  maxOldDueMonth = isoMonth();
+  private oldDueRequestId = '';
   editForm: any = {};
 
   /** Set when the page is opened from the grid's small + icon (?entry=1). */
@@ -717,38 +720,40 @@ export class CustomerDetailComponent implements OnInit {
     });
   }
 
-  // ---------------- Old payment (past month's dues) ----------------
+  // ---------------- Old due (past month's pending khata) ----------------
 
-  openOldPayment() {
-    this.oldPayForm = { amount: null, month: '', note: '' };
-    this.maxOldPayMonth = isoMonth();
+  openOldDue() {
+    this.oldDueForm = { amount: null, month: '', note: '' };
+    this.maxOldDueMonth = isoMonth();
+    this.oldDueRequestId = newRequestId();
     this.modalError = '';
-    this.oldPayOpen = true;
+    this.oldDueOpen = true;
   }
 
-  saveOldPayment() {
+  saveOldDue() {
     if (this.saving) return;
     this.modalError = '';
-    if (!this.oldPayForm.amount || this.oldPayForm.amount <= 0) { this.modalError = 'Please enter a valid amount.'; return; }
-    if (!this.oldPayForm.month) { this.modalError = 'Please choose the month this payment is for.'; return; }
-    if (this.oldPayForm.month > this.maxOldPayMonth) { this.modalError = 'The month cannot be in the future.'; return; }
+    if (!this.oldDueForm.amount || this.oldDueForm.amount <= 0) { this.modalError = 'Please enter a valid amount.'; return; }
+    if (!this.oldDueForm.month) { this.modalError = 'Please choose the month this due belongs to.'; return; }
+    if (this.oldDueForm.month > this.maxOldDueMonth) { this.modalError = 'The month cannot be in the future.'; return; }
 
     this.saving = true;
-    this.api.addPayment({
+    this.api.addOldDue({
       customerId: this.customerId,
-      amount: this.oldPayForm.amount,
-      forPeriod: this.oldPayForm.month,
-      note: this.oldPayForm.note || undefined
+      amount: this.oldDueForm.amount,
+      month: this.oldDueForm.month,
+      note: this.oldDueForm.note || undefined,
+      requestId: this.oldDueRequestId
     }).subscribe({
-      next: p => {
+      next: e => {
         this.saving = false;
-        this.oldPayOpen = false;
-        this.toast.success(`Old payment saved: ₹${p.amount} for ${monthLabel(p.forPeriod)} — outstanding updated.`);
+        this.oldDueOpen = false;
+        this.toast.info(`Old due added: ₹${e.total} for ${monthLabel(e.forPeriod)} — outstanding went up.`);
         this.loadBill();
       },
       error: err => {
         this.saving = false;
-        this.modalError = err?.error?.error || 'Could not save the old payment.';
+        this.modalError = err?.error?.error || 'Could not save the old due.';
       }
     });
   }

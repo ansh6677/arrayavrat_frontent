@@ -48,6 +48,10 @@ export interface DailyEntry {
   /** true = paid on the spot (auto payment recorded); false = on credit. */
   paid?: boolean;
   linkedPaymentId?: string;
+  /** True for a past month's pending amount entered as a lump "old due". */
+  oldDue?: boolean;
+  /** For old dues: the billing month (YYYY-MM) the amount belongs to. */
+  forPeriod?: string;
 }
 
 export interface Payment {
