@@ -4,7 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 import { CartService } from '../core/cart.service';
-import { waLink } from '../core/farm';
+import {
+  DELIVERY_SLOTS, DeliverySlot, defaultSlotChoice, isoDate, niceDay, slotAvailable, waLink
+} from '../core/farm';
 import { IconComponent } from '../shared/icon.component';
 import { ProductImage } from '../shared/product-image';
 
@@ -16,7 +18,7 @@ import { ProductImage } from '../shared/product-image';
     <div class="container page-head">
       <span class="eyebrow">Your cart</span>
       <h1>Review your <span class="hl">order</span></h1>
-      <p>Set your quantities and send the entire order in one WhatsApp message — confirmed within 30 minutes.</p>
+      <p>Set your quantities, pick a delivery slot — Morning 6–10 AM or Evening 6–10 PM — and send the entire order in one WhatsApp message. Confirmed within 30 minutes.</p>
     </div>
 
     <section class="section" style="padding-top: 24px;">
@@ -71,7 +73,33 @@ import { ProductImage } from '../shared/product-image';
               <div class="srow"><span class="muted">Items</span><b>{{ cart.count() }}</b></div>
               <div class="srow total"><span>Total</span><b>₹{{ cart.total() | number: '1.0-2' }}</b></div>
 
+              <!-- ===== delivery schedule (two rounds a day) ===== -->
               <div class="field mt">
+                <label for="sdate">Delivery date <span class="req">*</span></label>
+                <input id="sdate" type="date" name="sdate" [(ngModel)]="slotDate"
+                       [min]="today" (ngModelChange)="onDateChange()" />
+              </div>
+              <div class="field">
+                <label>Delivery slot <span class="req">*</span></label>
+                <div class="slot-row" role="radiogroup" aria-label="Delivery slot">
+                  @for (s of slots; track s.key) {
+                    <button type="button" class="slot"
+                            [class.on]="slotKey === s.key"
+                            [disabled]="!slotOk(s)"
+                            [attr.aria-checked]="slotKey === s.key"
+                            role="radio"
+                            (click)="slotKey = s.key">
+                      <b>{{ s.label }}</b>
+                      <span>{{ s.window }}</span>
+                    </button>
+                  }
+                </div>
+                @if (todaySelected() && !slotOk(slots[0])) {
+                  <p class="slot-hint">Today's morning round is closed — pick the evening slot or tomorrow.</p>
+                }
+              </div>
+
+              <div class="field">
                 <label>Your name <span class="req">*</span></label>
                 <input name="cname" [(ngModel)]="name" placeholder="e.g. Ramesh Kumar" />
               </div>
@@ -136,6 +164,26 @@ import { ProductImage } from '../shared/product-image';
     .srow.total { border-bottom: none; font-family: var(--font-display); font-size: 1.25rem; }
     .srow.total b { color: var(--gold-2); }
     .shint { font-size: 0.8rem; margin-top: 10px; text-align: center; }
+
+    /* ---------- delivery slot picker ---------- */
+    .slot-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .slot {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 11px 10px; cursor: pointer;
+      background: #100E08; color: var(--ivory);
+      border: 1.5px solid var(--line-soft); border-radius: 12px;
+      font-family: var(--font-body); transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .slot b { font-size: 0.94rem; }
+    .slot span { font-size: 0.78rem; color: var(--muted); }
+    .slot:hover:not(:disabled) { border-color: var(--gold-2); }
+    .slot.on {
+      background: var(--gold-grad); border-color: transparent; color: #171307;
+      box-shadow: var(--shadow-sm);
+    }
+    .slot.on span { color: #3A3013; }
+    .slot:disabled { opacity: 0.42; cursor: not-allowed; }
+    .slot-hint { font-size: 0.78rem; color: var(--clay); margin-top: 8px; }
     @media (max-width: 860px) {
       .cart-grid { grid-template-columns: 1fr; }
       .summary { position: static; }
@@ -153,6 +201,41 @@ export class CartComponent {
   address = '';
   formError = '';
   note = '';
+
+  /* ---- delivery schedule: two rounds a day, 6–10 AM and 6–10 PM ---- */
+  slots = DELIVERY_SLOTS;
+  today = isoDate();
+  slotDate = defaultSlotChoice().date;
+  slotKey: DeliverySlot['key'] = defaultSlotChoice().slot;
+
+  todaySelected(): boolean {
+    return this.slotDate === this.today;
+  }
+
+  /** A slot is bookable if its cutoff for the chosen day hasn't passed. */
+  slotOk(s: DeliverySlot): boolean {
+    return slotAvailable(this.slotDate, s.key);
+  }
+
+  /**
+   * Keep the selection valid when the date moves: e.g. today after 9 AM the
+   * morning round is closed, so the choice hops to the first open slot.
+   */
+  onDateChange() {
+    if (this.slotDate < this.today) this.slotDate = this.today;
+    const chosen = this.slots.find(s => s.key === this.slotKey);
+    if (!chosen || !this.slotOk(chosen)) {
+      const open = this.slots.find(s => this.slotOk(s));
+      if (open) {
+        this.slotKey = open.key;
+      } else {
+        // Both of today's rounds are done — roll to tomorrow morning.
+        const next = defaultSlotChoice();
+        this.slotDate = next.date;
+        this.slotKey = next.slot;
+      }
+    }
+  }
 
   inc(id: string, qty: number) {
     this.cart.setQty(id, qty + 0.5);
@@ -178,6 +261,12 @@ export class CartComponent {
       return;
     }
 
+    const slot = this.slots.find(s => s.key === this.slotKey);
+    if (!slot || !this.slotOk(slot)) {
+      this.formError = 'Please pick an available delivery slot (Morning 6–10 AM or Evening 6–10 PM).';
+      return;
+    }
+
     const lines: string[] = ['I want to order:', ''];
     items.forEach((i, idx) => {
       const lineTotal = Math.round(i.qty * i.product.price * 100) / 100;
@@ -186,6 +275,7 @@ export class CartComponent {
     });
     lines.push('');
     lines.push(`Total: ₹${this.cart.total()}`);
+    lines.push(`Delivery: ${slot.label} (${slot.window}) — ${niceDay(this.slotDate)}`);
     lines.push(`Name: ${this.name.trim()}`);
     lines.push(`Mobile: ${digits}`);
     lines.push(`Address: ${this.address.trim()}`);
