@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { Bill, DailyEntry, Payment } from '../core/models';
-import { FARM, isProbablyPhone, niceDate, upiPayLink } from '../core/farm';
+import { FARM, isProbablyPhone, monthLabel, niceDate, upiPayLink } from '../core/farm';
 import { billPdfFile, downloadBillPdf } from '../core/pdf';
 import { ToastService } from '../core/toast.service';
 import { IconComponent } from './icon.component';
@@ -52,15 +52,20 @@ import { IconComponent } from './icon.component';
             </thead>
             <tbody>
               @for (e of bill.entries; track e.id) {
-                <tr>
+                <tr [class.old-due-row]="e.oldDue">
                   <td>{{ e.entryDate | date: 'dd MMM yyyy' }}</td>
                   <td>
-                    {{ e.productName }}
-                    @if (e.paid) { <span class="chip-paid">✓ Paid</span> } @else { <span class="chip-udhaar">Credit</span> }
-                    @if (e.note) { <span class="muted">· {{ e.note }}</span> }
+                    @if (e.oldDue) {
+                      <span class="old-due-chip">OLD DUE · {{ monthLabel(e.forPeriod) }}</span>
+                      @if (e.note) { <span class="muted">· {{ e.note }}</span> }
+                    } @else {
+                      {{ e.productName }}
+                      @if (e.paid) { <span class="chip-paid">✓ Paid</span> } @else { <span class="chip-udhaar">Credit</span> }
+                      @if (e.note) { <span class="muted">· {{ e.note }}</span> }
+                    }
                   </td>
-                  <td class="num">{{ e.quantity | number: '1.0-2' }} {{ e.unit }}</td>
-                  <td class="num">{{ e.rate | number: '1.0-2' }}</td>
+                  <td class="num">@if (e.oldDue) { — } @else { {{ e.quantity | number: '1.0-2' }} {{ e.unit }} }</td>
+                  <td class="num">@if (e.oldDue) { — } @else { {{ e.rate | number: '1.0-2' }} }</td>
                   <td class="num">{{ e.total | number: '1.0-2' }}</td>
                   @if (canManage) {
                     <td class="right no-print">
@@ -172,6 +177,14 @@ import { IconComponent } from './icon.component';
   styles: [`
     .pay-btn { background: linear-gradient(135deg, #2BB673, #1E9E62); border-color: transparent; }
 
+    /* Old dues (past month's pending khata) stand out in amber. */
+    .old-due-row td { background: rgba(217, 142, 50, 0.10); }
+    .old-due-chip {
+      display: inline-block; margin-right: 6px; padding: 2px 8px; border-radius: 999px;
+      background: rgba(217, 142, 50, 0.18); border: 1px solid rgba(217, 142, 50, 0.55);
+      color: #E5A55D; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap;
+    }
+
     /* The action row wraps instead of colliding when space runs out. */
     .bill-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; align-items: center; }
 
@@ -187,6 +200,7 @@ import { IconComponent } from './icon.component';
   `]
 })
 export class BillViewComponent {
+  monthLabel = monthLabel;
   private toast = inject(ToastService);
 
   /** True while the PDF is being generated for download / share. */

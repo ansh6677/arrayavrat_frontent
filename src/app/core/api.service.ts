@@ -63,8 +63,10 @@ export class ApiService {
     paymentMode?: string;
     note?: string;
     items: { productId: string; quantity: number; rate?: number }[];
+    /** Unique id per save tap — the backend ignores an accidental repeat. */
+    requestId?: string;
   }) {
-    return this.http.post<{ created: number; days: number; totalAmount: number }>(
+    return this.http.post<{ created: number; days: number; totalAmount: number; duplicate?: boolean }>(
       `${API_URL}/admin/entries/bulk`, data);
   }
 
@@ -84,6 +86,11 @@ export class ApiService {
 
   addPayment(data: { customerId: string; amount: number; paymentDate?: string; mode?: string; note?: string }) {
     return this.http.post<Payment>(`${API_URL}/admin/payments`, data);
+  }
+
+  /** A past month's pending amount — saved as an UNPAID entry that raises the outstanding. */
+  addOldDue(data: { customerId: string; amount: number; month: string; note?: string; requestId?: string }) {
+    return this.http.post<DailyEntry>(`${API_URL}/admin/entries/old-due`, data);
   }
 
   getPayments(filter: { customerId?: string; from?: string; to?: string }) {

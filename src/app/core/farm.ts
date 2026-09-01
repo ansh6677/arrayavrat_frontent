@@ -186,41 +186,49 @@ export interface Review {
   area: string;
   stars: 4 | 5;
   text: string;
+  /** Bundled portrait (assets/reviews/...). Swap with real customer photos anytime. */
+  photo: string;
 }
 
 export const REVIEWS: Review[] = [
   {
     name: 'Ramesh Prasad',
+    photo: 'assets/reviews/ramesh.jpg',
     area: 'Ahiyapur, Muzaffarpur',
     stars: 5,
     text: 'Milk reaches our home every morning before 7 — still fresh from milking. The cream on top reminds me of my village days.'
   },
   {
     name: 'Sunita Devi',
+    photo: 'assets/reviews/sunita.jpg',
     area: 'Mithanpura',
     stars: 5,
     text: 'My kids only drink Aryavart A2 milk now. The matka curd is thick and naturally sweet — no comparison with packet dahi.'
   },
   {
     name: 'Amit Kumar Jha',
+    photo: 'assets/reviews/amit.jpg',
     area: 'Bela Industrial Area',
     stars: 4,
     text: 'Ordered bilona ghee for the whole family on WhatsApp. Confirmed in minutes, delivered the same evening. Aroma is amazing.'
   },
   {
     name: 'Pooja Singh',
+    photo: 'assets/reviews/pooja.jpg',
     area: 'Brahmpura',
     stars: 5,
     text: 'The monthly bill PDF on WhatsApp makes hisaab so easy. Pure milk, honest billing — exactly what a family needs.'
   },
   {
     name: 'Vikash Choudhary',
+    photo: 'assets/reviews/vikash.jpg',
     area: 'Saraiyaganj',
     stars: 4,
     text: 'Paneer is soft and fresh, clearly made the same day. Evening delivery slot suits our shop timings perfectly.'
   },
   {
     name: 'Nisha Kumari',
+    photo: 'assets/reviews/nisha.jpg',
     area: 'Kalambagh Road',
     stars: 5,
     text: 'We even asked for the lab certificate — they shared it happily. That confidence is why 500+ families trust this farm.'
@@ -367,6 +375,42 @@ export function isoDate(d: Date = new Date()): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+/**
+ * "2026-07" -> "Jul 2026" — the human label for an old-payment billing cycle.
+ * Falls back to the raw string when it is not a parseable YYYY-MM.
+ */
+export function monthLabel(ym?: string | null): string {
+  if (!ym) return '';
+  const m = /^(\d{4})-(\d{2})$/.exec(ym.trim());
+  if (!m) return ym;
+  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const idx = Number(m[2]) - 1;
+  if (idx < 0 || idx > 11) return ym;
+  return names[idx] + ' ' + m[1];
+}
+
+/** Current month as YYYY-MM (max for the old-payment month picker). */
+export function isoMonth(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Unique id for one save action, sent as `requestId` so the backend can
+ * ignore an accidental duplicate submit (double tap / network retry).
+ * Falls back to time+random when crypto.randomUUID is unavailable
+ * (non-HTTPS contexts on old browsers).
+ */
+export function newRequestId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* fall through to the manual id */
+  }
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 /** First day of the current month (YYYY-MM-DD). */

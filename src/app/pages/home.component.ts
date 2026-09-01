@@ -179,7 +179,7 @@ interface Slide {
       <div class="container">
         <div class="section-head">
           <span class="section-label">Loved across Muzaffarpur</span>
-          <h2>Rated {{ farm.rating }} by <span class="hl">{{ farm.customersServed }} happy customers</span></h2>
+          <h2>Rated {{ farm.rating }} by <span class="hl hl-shine">{{ farm.customersServed }} happy customers</span></h2>
           <p>Real families, real mornings — this is what they tell us.</p>
         </div>
 
@@ -202,21 +202,36 @@ interface Slide {
           </div>
         </div>
 
-        <div class="rev-grid">
-          @for (r of reviews; track r.name) {
-            <figure class="card rev">
-              <span class="stars stars-sm" [style.--fill.%]="(r.stars / 5) * 100"
-                    [attr.aria-label]="r.stars + ' out of 5 stars'">
-                <span class="stars-back">★★★★★</span>
-                <span class="stars-front">★★★★★</span>
-              </span>
-              <blockquote>“{{ r.text }}”</blockquote>
-              <figcaption>
-                <b>{{ r.name }}</b>
-                <span>{{ r.area }}</span>
-              </figcaption>
-            </figure>
-          }
+        <div class="rev-marquee" aria-label="Customer reviews — auto sliding">
+          <div class="rev-track">
+            @for (r of loopReviews; track $index) {
+              <figure class="card rev" [style.--d]="$index % reviews.length"
+                      [attr.aria-hidden]="$index >= reviews.length">
+                <div class="rev-head">
+                  @if (r.photo) {
+                    <img class="rev-photo" [src]="r.photo" [alt]="r.name"
+                         loading="lazy" width="52" height="52"
+                         (error)="r.photo = ''" />
+                  } @else {
+                    <span class="rev-photo rev-initials">{{ initials(r.name) }}</span>
+                  }
+                  <div class="rev-who">
+                    <b>{{ r.name }}</b>
+                    <span>{{ r.area }}</span>
+                  </div>
+                  <span class="rev-verified"><span class="v-dot"></span>Verified</span>
+                </div>
+                <span class="stars stars-sm rev-twinkle" [style.--fill.%]="(r.stars / 5) * 100"
+                      [attr.aria-label]="r.stars + ' out of 5 stars'">
+                  <span class="stars-back">★★★★★</span>
+                  <span class="stars-front">★★★★★</span>
+                </span>
+                <blockquote>“{{ r.text }}”</blockquote>
+              </figure>
+            }
+          </div>
+          <div class="rev-fade rev-fade-l" aria-hidden="true"></div>
+          <div class="rev-fade rev-fade-r" aria-hidden="true"></div>
         </div>
       </div>
     </section>
@@ -516,17 +531,109 @@ interface Slide {
     }
     .stars-sm { font-size: 1rem; letter-spacing: 2.5px; }
 
-    .rev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
-    .rev { display: flex; flex-direction: column; gap: 12px; }
+    /* ---------- reviews: auto-sliding marquee, glowing "live" feel ----------
+       One continuous row: the list is rendered twice and the track slides to
+       -50%, so the loop is seamless. Hover/press pauses it. Every card, star
+       row and avatar ring pulses on its own staggered delay (--d), so the
+       whole band shimmers instead of blinking in lockstep. */
+    .rev-marquee { position: relative; overflow: hidden; padding: 8px 0 12px; }
+    .rev-track {
+      display: flex; width: max-content;
+      animation: revSlide 44s linear infinite;
+      will-change: transform;
+    }
+    .rev-marquee:hover .rev-track,
+    .rev-marquee:active .rev-track { animation-play-state: paused; }
+    @keyframes revSlide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+    .rev {
+      display: flex; flex-direction: column; gap: 12px;
+      width: min(360px, 82vw); flex: 0 0 auto; margin-right: 18px;
+      border: 1px solid rgba(228, 199, 102, 0.18);
+      animation: revGlow 3.6s ease-in-out infinite;
+      animation-delay: calc(var(--d, 0) * -0.6s);
+    }
+    @keyframes revGlow {
+      0%, 100% { box-shadow: 0 0 0 rgba(228, 199, 102, 0); border-color: rgba(228, 199, 102, 0.16); }
+      50% { box-shadow: 0 0 24px rgba(228, 199, 102, 0.14), 0 0 64px rgba(228, 199, 102, 0.05);
+            border-color: rgba(228, 199, 102, 0.5); }
+    }
+
+    .rev-head { display: flex; align-items: center; gap: 12px; }
+    .rev-photo {
+      width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex: 0 0 auto;
+      border: 2px solid var(--gold-2);
+      animation: ringPulse 2.8s ease-out infinite;
+      animation-delay: calc(var(--d, 0) * -0.7s);
+    }
+    @keyframes ringPulse {
+      0% { box-shadow: 0 0 0 0 rgba(228, 199, 102, 0.45); }
+      70% { box-shadow: 0 0 0 10px rgba(228, 199, 102, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(228, 199, 102, 0); }
+    }
+    .rev-initials {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, rgba(201, 162, 39, 0.35), rgba(201, 162, 39, 0.1));
+      color: var(--gold-2); font-weight: 700; font-size: 1rem; letter-spacing: 0.03em;
+    }
+    .rev-who { display: flex; flex-direction: column; min-width: 0; }
+    .rev-who b { color: var(--gold-2); font-size: 0.95rem; }
+    .rev-who span { color: var(--muted); font-size: 0.8rem; }
+    .rev-verified {
+      margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; color: #9ACE84;
+      border: 1px solid rgba(55, 200, 113, 0.35); border-radius: 999px; padding: 4px 9px;
+      background: rgba(55, 200, 113, 0.08); white-space: nowrap;
+    }
+    .v-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #37c871;
+      box-shadow: 0 0 8px rgba(55, 200, 113, 0.9);
+      animation: blinkDot 1.2s ease-in-out infinite;
+    }
+    @keyframes blinkDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+    .rev-twinkle .stars-front {
+      animation: starTwinkle 1.9s ease-in-out infinite;
+      animation-delay: calc(var(--d, 0) * -0.35s);
+    }
+    @keyframes starTwinkle {
+      0%, 100% { text-shadow: 0 0 8px rgba(228, 199, 102, 0.25); opacity: 0.9; }
+      50% { text-shadow: 0 0 18px rgba(228, 199, 102, 0.9), 0 0 36px rgba(228, 199, 102, 0.35); opacity: 1; }
+    }
+
     .rev blockquote { color: var(--ivory); font-size: 0.96rem; line-height: 1.6; flex: 1; }
-    .rev figcaption { display: flex; flex-direction: column; border-top: 1px dashed var(--line-soft); padding-top: 12px; }
-    .rev figcaption b { color: var(--gold-2); font-size: 0.95rem; }
-    .rev figcaption span { color: var(--muted); font-size: 0.82rem; }
+
+    /* Soft edges so cards melt in/out of the section background. */
+    .rev-fade { position: absolute; top: 0; bottom: 0; width: 64px; pointer-events: none; z-index: 2; }
+    .rev-fade-l { left: 0; background: linear-gradient(90deg, var(--coal-2), transparent); }
+    .rev-fade-r { right: 0; background: linear-gradient(-90deg, var(--coal-2), transparent); }
+
+    /* The big 4.4 and the gold headline breathe too. */
+    .rate-num { display: inline-block; animation: numPulse 2.4s ease-in-out infinite; }
+    @keyframes numPulse {
+      0%, 100% { transform: scale(1); text-shadow: 0 0 10px rgba(228, 199, 102, 0.2); }
+      50% { transform: scale(1.06); text-shadow: 0 0 26px rgba(228, 199, 102, 0.65); }
+    }
+    .hl-shine {
+      background: linear-gradient(100deg, var(--gold-2) 30%, #fff3c4 50%, var(--gold-2) 70%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      background-size: 220% 100%;
+      animation: shineSweep 3s linear infinite;
+    }
+    @keyframes shineSweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+    /* Motion-sensitive users get a calm, swipeable strip instead. */
+    @media (prefers-reduced-motion: reduce) {
+      .rev-track, .rev, .rev-photo, .rev-twinkle .stars-front,
+      .v-dot, .rate-num, .hl-shine { animation: none !important; }
+      .hl-shine { color: var(--gold-2); background: none; }
+      .rev-marquee { overflow-x: auto; }
+    }
 
     @media (max-width: 700px) {
       .rate-band { gap: 14px; }
       .rate-tags { margin-left: 0; }
-      .rev-grid { grid-template-columns: 1fr; }
+      .rev { width: 84vw; }
     }
 
     /* ---------- product preview / slider ---------- */
@@ -678,6 +785,12 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   farm = FARM;
   socials = SOCIALS;
   reviews = REVIEWS;
+  /** The list twice over — the marquee slides to -50% for a seamless loop. */
+  loopReviews = [...REVIEWS, ...REVIEWS];
+
+  initials(name: string): string {
+    return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  }
   wa = waLink();
   img = new ProductImage();
 
