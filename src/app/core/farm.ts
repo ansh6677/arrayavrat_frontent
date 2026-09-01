@@ -369,6 +369,42 @@ export function isoDate(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * "2026-07" -> "Jul 2026" — the human label for an old-payment billing cycle.
+ * Falls back to the raw string when it is not a parseable YYYY-MM.
+ */
+export function monthLabel(ym?: string | null): string {
+  if (!ym) return '';
+  const m = /^(\d{4})-(\d{2})$/.exec(ym.trim());
+  if (!m) return ym;
+  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const idx = Number(m[2]) - 1;
+  if (idx < 0 || idx > 11) return ym;
+  return names[idx] + ' ' + m[1];
+}
+
+/** Current month as YYYY-MM (max for the old-payment month picker). */
+export function isoMonth(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Unique id for one save action, sent as `requestId` so the backend can
+ * ignore an accidental duplicate submit (double tap / network retry).
+ * Falls back to time+random when crypto.randomUUID is unavailable
+ * (non-HTTPS contexts on old browsers).
+ */
+export function newRequestId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* fall through to the manual id */
+  }
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /** First day of the current month (YYYY-MM-DD). */
 /** "just now", "5m ago", "3h ago", "Yesterday", "12 Aug" — feed-style times. */
 /**
@@ -378,13 +414,49 @@ export function isoDate(d: Date = new Date()): string {
  * which callers should handle with a copy-the-id fallback.
  */
 export function upiPayLink(amount: number, note = `${FARM.name} bill`): string {
+  return 'upi://pay?' + upiParams(amount, note);
+}
+
+/** Query string shared by every UPI deep link — always the farm's UPI ID. */
+function upiParams(amount: number, note: string): string {
   const amt = (Math.round(amount * 100) / 100).toFixed(2);
-  return 'upi://pay'
-    + '?pa=' + encodeURIComponent(FARM.upiId)
+  return 'pa=' + encodeURIComponent(FARM.upiId)
     + '&pn=' + encodeURIComponent(FARM.upiName)
     + '&am=' + amt
     + '&cu=INR'
     + '&tn=' + encodeURIComponent(note.slice(0, 40));
+}
+
+/** True on iPhones/iPads (incl. iPadOS pretending to be macOS). */
+export function isIos(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iphone|ipad|ipod/i.test(ua)) return true;
+  return /macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1;
+}
+
+export interface UpiAppLink { id: string; label: string; href: string; }
+
+/**
+ * Direct per-app UPI links for the pay sheet. Android's generic upi:// opens
+ * the system chooser with EVERY installed UPI app — perfect. But iOS hands
+ * the whole upi:// scheme to a single app (whichever registered it last;
+ * for many people that is WhatsApp), so iPhones were landing in WhatsApp Pay.
+ * The fix: on iOS the customer taps their app and we use that app's own
+ * scheme — GPay tez://, PhonePe phonepe://, Paytm paytmmp:// — all carrying
+ * the same UPI ID (8789816971@ptsbi) and amount.
+ */
+export function upiAppLinks(amount: number, note = `${FARM.name} bill`)
+  : { generic: string; apps: UpiAppLink[] } {
+  const q = upiParams(amount, note);
+  return {
+    generic: 'upi://pay?' + q,
+    apps: [
+      { id: 'gpay', label: 'Google Pay', href: 'tez://upi/pay?' + q },
+      { id: 'phonepe', label: 'PhonePe', href: 'phonepe://pay?' + q },
+      { id: 'paytm', label: 'Paytm', href: 'paytmmp://pay?' + q }
+    ]
+  };
 }
 
 export function relTime(iso?: string | null): string {
