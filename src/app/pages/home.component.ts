@@ -208,13 +208,7 @@ interface Slide {
               <figure class="card rev" [style.--d]="$index % reviews.length"
                       [attr.aria-hidden]="$index >= reviews.length">
                 <div class="rev-head">
-                  @if (r.photo) {
-                    <img class="rev-photo" [src]="r.photo" [alt]="r.name"
-                         loading="lazy" width="52" height="52"
-                         (error)="r.photo = ''" />
-                  } @else {
-                    <span class="rev-photo rev-initials">{{ initials(r.name) }}</span>
-                  }
+                  <span class="rev-photo rev-initials">{{ initials(r.name) }}</span>
                   <div class="rev-who">
                     <b>{{ r.name }}</b>
                     <span>{{ r.area }}</span>

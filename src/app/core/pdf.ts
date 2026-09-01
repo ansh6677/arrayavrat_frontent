@@ -203,6 +203,33 @@ async function buildBillPdf(bill: Bill) {
   doc.setFontSize(9);
   doc.text('PURCHASES', 40, 244);
 
+  // Product-wise quantity totals for the period — "kitne litre / kg gaya"
+  // at a glance. Old dues are lump amounts, not deliveries, so they are
+  // left out of the quantity math.
+  const qtyMap = new Map<string, { name: string; unit: string; qty: number }>();
+  for (const e of bill.entries) {
+    if (e.oldDue) continue;
+    const name = e.productName || 'Other';
+    const unit = e.unit || '';
+    const key = name + '|' + unit;
+    const cur = qtyMap.get(key) || { name, unit, qty: 0 };
+    cur.qty += e.quantity;
+    qtyMap.set(key, cur);
+  }
+  const qtySummary = [...qtyMap.values()]
+    .map(t => (t.name + ': ' + (Math.round(t.qty * 100) / 100) + (t.unit ? ' ' + t.unit : '')).trim())
+    .join('    ·    ');
+  const purchaseFoot: any[] = [
+    [{ content: 'Total purchases (this period)', colSpan: 5, styles: { halign: 'right' } }, money(bill.periodTotal)]
+  ];
+  if (qtySummary) {
+    purchaseFoot.push([{
+      content: 'Total quantity — ' + qtySummary,
+      colSpan: 6,
+      styles: { halign: 'left', fontStyle: 'italic', fontSize: 8.2 }
+    }]);
+  }
+
   autoTable(doc, {
     startY: 252,
     head: [['#', 'Date', 'Product', 'Qty', 'Rate', 'Amount']],
@@ -232,7 +259,7 @@ async function buildBillPdf(bill: Bill) {
         money(e.total)
       ];
     }),
-    foot: [[{ content: 'Total purchases (this period)', colSpan: 5, styles: { halign: 'right' } }, money(bill.periodTotal)]],
+    foot: purchaseFoot,
     theme: 'grid',
     styles: { font: 'helvetica', fontSize: 9, textColor: INK, lineColor: [229, 221, 199], lineWidth: 0.4, cellPadding: 6 },
     headStyles: { fillColor: DARK, textColor: GOLD_BRIGHT, fontStyle: 'bold', fontSize: 8.4 },
