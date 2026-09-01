@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-import { FARM, niceDate, upiPayLink } from './farm';
+import { FARM, monthLabel, niceDate, upiPayLink } from './farm';
 import { Bill } from './models';
 
 const GOLD: [number, number, number] = [201, 162, 39];
@@ -13,6 +13,9 @@ const MUTED: [number, number, number] = [120, 113, 96];
 const IVORY: [number, number, number] = [238, 231, 210];
 const CREAM: [number, number, number] = [247, 241, 226];
 const CREAM_ROW: [number, number, number] = [251, 247, 238];
+/** Old-payment rows print in amber so past-month dues stand out at a glance. */
+const AMBER_FILL: [number, number, number] = [252, 234, 208];
+const AMBER_TEXT: [number, number, number] = [146, 92, 20];
 const RED_ON_DARK: [number, number, number] = [242, 130, 112];
 const GREEN_ON_DARK: [number, number, number] = [154, 206, 132];
 
@@ -230,6 +233,52 @@ async function buildBillPdf(bill: Bill) {
 
   // ============ payments table ============
   if (bill.payments.length > 0) {
+    // A [PAID] tag on every purchase row above already says which entries were
+    // paid on the spot. Repeating each auto payment ("Paid with entry — ...")
+    // here as its own row made the PDF huge — a 31-day paid month meant 31
+    // identical Rs. 55 rows. Those are collapsed into ONE summary row; only
+    // standalone payments (lump-sum / manual) keep individual rows. Totals are
+    // unchanged — the summary row carries the combined amount.
+    const linkedIds = new Set(
+      bill.entries.map(e => e.linkedPaymentId).filter((id): id is string => !!id)
+    );
+    const paidWithEntry = (note?: string, id?: string) =>
+      (!!id && linkedIds.has(id)) || (note || '').startsWith('Paid with entry');
+    const withEntry = bill.payments.filter(p => paidWithEntry(p.note, p.id));
+    const standalone = bill.payments.filter(p => !paidWithEntry(p.note, p.id));
+    const withEntryTotal =
+      Math.round(withEntry.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+
+    const paymentRows: any[] = standalone.map((p, i) => {
+      const isOld = !!p.forPeriod;
+      const note = isOld
+        ? 'OLD DUES (' + monthLabel(p.forPeriod) + ')' + (p.note ? ' — ' + p.note : '')
+        : (p.note || '-');
+      const oldStyle = { fillColor: AMBER_FILL, textColor: AMBER_TEXT };
+      const cell = (content: string, extra?: Record<string, unknown>) =>
+        isOld ? { content, styles: { ...oldStyle, ...(extra || {}) } } : content;
+      return [
+        cell(String(i + 1)),
+        cell(niceDate(p.paymentDate)),
+        cell(p.mode || ''),
+        cell(note, isOld ? { fontStyle: 'bold' } : undefined),
+        cell(money(p.amount))
+      ];
+    });
+    if (withEntry.length > 0) {
+      paymentRows.push([
+        {
+          content:
+            'Paid together with ' + withEntry.length + ' daily ' +
+            (withEntry.length === 1 ? 'entry' : 'entries') +
+            ' — see [PAID] rows in the purchases table',
+          colSpan: 4,
+          styles: { fontStyle: 'italic' }
+        },
+        money(withEntryTotal)
+      ]);
+    }
+
     doc.setTextColor(GOLD_DEEP[0], GOLD_DEEP[1], GOLD_DEEP[2]);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
@@ -238,13 +287,7 @@ async function buildBillPdf(bill: Bill) {
     autoTable(doc, {
       startY: fy + 8,
       head: [['#', 'Date', 'Mode', 'Note', 'Amount']],
-      body: bill.payments.map((p, i) => [
-        String(i + 1),
-        niceDate(p.paymentDate),
-        p.mode || '',
-        p.note || '-',
-        money(p.amount)
-      ]),
+      body: paymentRows,
       foot: [[{ content: 'Total paid (this period)', colSpan: 4, styles: { halign: 'right' } }, money(bill.periodPaid)]],
       theme: 'grid',
       styles: { font: 'helvetica', fontSize: 9, textColor: INK, lineColor: [229, 221, 199], lineWidth: 0.4, cellPadding: 6 },

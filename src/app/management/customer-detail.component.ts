@@ -8,7 +8,7 @@ import { saveBlob } from '../core/download';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
-import { isoDate, monthStart } from '../core/farm';
+import { isoDate, isoMonth, monthLabel, monthStart, newRequestId } from '../core/farm';
 import { Bill, DailyEntry, Payment, Product, UserInfo } from '../core/models';
 import { BillViewComponent } from '../shared/bill-view.component';
 import { IconComponent } from '../shared/icon.component';
@@ -50,6 +50,9 @@ import { IconComponent } from '../shared/icon.component';
               </button>
               <button class="btn btn-gold" (click)="openPayment()">
                 <app-icon name="wallet" [size]="15" /> Payment
+              </button>
+              <button class="btn btn-outline btn-oldpay" (click)="openOldPayment()">
+                <app-icon name="wallet" [size]="15" /> Old payment
               </button>
               <button class="btn btn-outline" (click)="openEdit()">
                 <app-icon name="edit" [size]="15" /> Edit customer
@@ -243,6 +246,47 @@ import { IconComponent } from '../shared/icon.component';
       </div>
     }
 
+    <!-- ================= Old payment popup =================
+         Money received today that clears an EARLIER month's dues.
+         Deliberately only three fields: amount, which month, remarks. -->
+    @if (oldPayOpen) {
+      <div class="modal-back" (click)="oldPayOpen = false">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-head">
+            <h3>Old payment — {{ customer?.name }}</h3>
+            <button type="button" class="modal-close" (click)="oldPayOpen = false" aria-label="Close">
+              <app-icon name="close" [size]="16" [stroke]="2.2" />
+            </button>
+          </div>
+          @if (modalError) { <div class="alert alert-error">{{ modalError }}</div> }
+          <p class="m-note">
+            For dues of a past month. It is recorded on today's date, marked with the
+            month it clears, and shows in amber on the bill and PDF.
+          </p>
+          <div class="form-grid">
+            <div class="field">
+              <label>Amount (₹) <span class="req">*</span></label>
+              <input type="number" name="oamt" [(ngModel)]="oldPayForm.amount" min="1" step="1" placeholder="e.g. 1500" />
+            </div>
+            <div class="field">
+              <label>For month (cycle) <span class="req">*</span></label>
+              <input type="month" name="omonth" [(ngModel)]="oldPayForm.month" [max]="maxOldPayMonth" />
+            </div>
+            <div class="field field-wide">
+              <label>Remarks</label>
+              <input name="onote" [(ngModel)]="oldPayForm.note" placeholder="e.g. July ka baaki, cash" />
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-ghost" (click)="oldPayOpen = false">Cancel</button>
+            <button class="btn btn-gold" (click)="saveOldPayment()" [disabled]="saving">
+              @if (saving) { <span class="spinner"></span> } Save old payment
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
     <!-- ================= Edit customer popup ================= -->
     @if (editOpen) {
       <div class="modal-back" (click)="editOpen = false">
@@ -366,6 +410,8 @@ import { IconComponent } from '../shared/icon.component';
     }
     .cd-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin: 12px 0 18px; }
     .cd-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn-oldpay { border-color: #B87333; color: #E5A55D; }
+    .btn-oldpay:hover { border-color: #E5A55D; background: rgba(217, 142, 50, 0.12); color: #F0BC7E; }
     .cd-meta { margin-bottom: 6px; }
     .cd-off { margin-left: 8px; }
 
@@ -416,8 +462,13 @@ export class CustomerDetailComponent implements OnInit {
 
   /** productId -> quantity for the current basket (only picked products appear). */
   picked: Record<string, number> = {};
+  /** Unique id for the current entry sheet — lets the backend ignore an accidental double submit. */
+  private entryRequestId = '';
   quickQty = [0.5, 1, 1.5, 2];
   paymentForm = { amount: null as number | null, paymentDate: isoDate(), mode: 'Cash', note: '' };
+  oldPayOpen = false;
+  oldPayForm = { amount: null as number | null, month: '', note: '' };
+  maxOldPayMonth = isoMonth();
   editForm: any = {};
 
   /** Set when the page is opened from the grid's small + icon (?entry=1). */
@@ -496,6 +547,7 @@ export class CustomerDetailComponent implements OnInit {
 
   openEntry() {
     this.entryForm = { from: isoDate(), to: isoDate(), note: '', paid: false, paymentMode: 'Cash' };
+    this.entryRequestId = newRequestId();
     // The customer's usual products (chosen when they were added) come
     // pre-ticked at quantity 1, so a routine day is two clicks: open, save.
     this.picked = {};
@@ -565,6 +617,9 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   saveEntry() {
+    // Re-entry guard: a double tap can land before the disabled state paints,
+    // so the method itself refuses to run twice while a save is in flight.
+    if (this.saving) return;
     this.modalError = '';
     const items = this.products
       .filter(p => this.isPicked(p))
@@ -583,16 +638,19 @@ export class CustomerDetailComponent implements OnInit {
       note: this.entryForm.note || undefined,
       paid: this.entryForm.paid,
       paymentMode: this.entryForm.paid ? this.entryForm.paymentMode : undefined,
-      items
+      items,
+      requestId: this.entryRequestId
     }).subscribe({
       next: res => {
         this.saving = false;
         this.entryOpen = false;
-        const label = `${res.created} ${res.created === 1 ? 'entry' : 'entries'} across ${res.days} ${res.days === 1 ? 'day' : 'days'} — ₹${res.totalAmount}`;
-        if (this.entryForm.paid) {
-          this.toast.success(`Saved & marked paid: ${label}.`);
-        } else {
-          this.toast.info(`Saved on credit: ${label} added to outstanding.`);
+        if (!res.duplicate) {
+          const label = `${res.created} ${res.created === 1 ? 'entry' : 'entries'} across ${res.days} ${res.days === 1 ? 'day' : 'days'} — ₹${res.totalAmount}`;
+          if (this.entryForm.paid) {
+            this.toast.success(`Saved & marked paid: ${label}.`);
+          } else {
+            this.toast.info(`Saved on credit: ${label} added to outstanding.`);
+          }
         }
         if (this.returnToGrid) {
           // Quick entry from the grid's + icon: job done, straight back to the list.
@@ -634,6 +692,7 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   savePayment() {
+    if (this.saving) return;
     this.modalError = '';
     if (!this.paymentForm.amount || this.paymentForm.amount <= 0) { this.modalError = 'Please enter a valid amount.'; return; }
 
@@ -654,6 +713,42 @@ export class CustomerDetailComponent implements OnInit {
       error: err => {
         this.saving = false;
         this.modalError = err?.error?.error || 'Could not save the payment.';
+      }
+    });
+  }
+
+  // ---------------- Old payment (past month's dues) ----------------
+
+  openOldPayment() {
+    this.oldPayForm = { amount: null, month: '', note: '' };
+    this.maxOldPayMonth = isoMonth();
+    this.modalError = '';
+    this.oldPayOpen = true;
+  }
+
+  saveOldPayment() {
+    if (this.saving) return;
+    this.modalError = '';
+    if (!this.oldPayForm.amount || this.oldPayForm.amount <= 0) { this.modalError = 'Please enter a valid amount.'; return; }
+    if (!this.oldPayForm.month) { this.modalError = 'Please choose the month this payment is for.'; return; }
+    if (this.oldPayForm.month > this.maxOldPayMonth) { this.modalError = 'The month cannot be in the future.'; return; }
+
+    this.saving = true;
+    this.api.addPayment({
+      customerId: this.customerId,
+      amount: this.oldPayForm.amount,
+      forPeriod: this.oldPayForm.month,
+      note: this.oldPayForm.note || undefined
+    }).subscribe({
+      next: p => {
+        this.saving = false;
+        this.oldPayOpen = false;
+        this.toast.success(`Old payment saved: ₹${p.amount} for ${monthLabel(p.forPeriod)} — outstanding updated.`);
+        this.loadBill();
+      },
+      error: err => {
+        this.saving = false;
+        this.modalError = err?.error?.error || 'Could not save the old payment.';
       }
     });
   }
@@ -718,6 +813,7 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   saveEdit() {
+    if (this.saving) return;
     this.modalError = '';
     if (!this.editForm.name?.trim() || !this.editForm.phone?.trim()) {
       this.modalError = 'Name and phone are required.';
