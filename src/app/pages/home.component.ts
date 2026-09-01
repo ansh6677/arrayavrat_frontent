@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 import { CartService } from '../core/cart.service';
-import { FARM, SOCIALS, waLink } from '../core/farm';
+import { FARM, REVIEWS, SOCIALS, waLink } from '../core/farm';
 import { Product } from '../core/models';
 import { IconComponent } from '../shared/icon.component';
 import { ProductImage } from '../shared/product-image';
@@ -54,6 +54,7 @@ interface Slide {
                 </a>
               </div>
               <ul class="hero-chips">
+                <li class="chip-rate"><app-icon name="star" [size]="15" /> {{ farm.rating }} rated · {{ farm.customersServed }} happy customers</li>
                 <li><app-icon name="truck" [size]="15" /> Doorstep in 2 hours</li>
                 <li><app-icon name="leaf" [size]="15" /> 100% A2 desi cows</li>
                 <li><app-icon name="shield" [size]="15" /> Lab certificate on request</li>
@@ -168,6 +169,53 @@ interface Slide {
               <h3>{{ f.title }}</h3>
               <p>{{ f.body }}</p>
             </div>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CUSTOMER REVIEWS ================= -->
+    <section class="section section-alt" aria-label="Customer reviews">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-label">Loved across Muzaffarpur</span>
+          <h2>Rated {{ farm.rating }} by <span class="hl">{{ farm.customersServed }} happy customers</span></h2>
+          <p>Real families, real mornings — this is what they tell us.</p>
+        </div>
+
+        <div class="rate-band card">
+          <div class="rate-big">
+            <span class="rate-num">{{ farm.rating }}</span>
+            <span class="rate-of">/ {{ farm.ratingOutOf }}</span>
+          </div>
+          <div class="rate-meta">
+            <span class="stars" [style.--fill.%]="(farm.rating / farm.ratingOutOf) * 100" aria-hidden="true">
+              <span class="stars-back">★★★★★</span>
+              <span class="stars-front">★★★★★</span>
+            </span>
+            <span class="rate-note">Average rating from {{ farm.customersServed }} customers served</span>
+          </div>
+          <div class="rate-tags">
+            <span><app-icon name="users" [size]="15" /> {{ farm.customersServed }} families</span>
+            <span><app-icon name="truck" [size]="15" /> Morning & evening delivery</span>
+            <span><app-icon name="whatsapp" [size]="15" /> Orders on WhatsApp</span>
+          </div>
+        </div>
+
+        <div class="rev-grid">
+          @for (r of reviews; track r.name) {
+            <figure class="card rev">
+              <span class="stars stars-sm" [style.--fill.%]="(r.stars / 5) * 100"
+                    [attr.aria-label]="r.stars + ' out of 5 stars'">
+                <span class="stars-back">★★★★★</span>
+                <span class="stars-front">★★★★★</span>
+              </span>
+              <blockquote>“{{ r.text }}”</blockquote>
+              <figcaption>
+                <b>{{ r.name }}</b>
+                <span>{{ r.area }}</span>
+              </figcaption>
+            </figure>
           }
         </div>
       </div>
@@ -344,7 +392,10 @@ interface Slide {
        photograph, so cover was throwing away nearly a third of every image's
        height — which is what cut the cow's head and back off. Letting the hero
        grow taller brings the box ratio back towards the pictures' own. */
-    .hero { position: relative; height: clamp(540px, 80vh, 880px); overflow: hidden; }
+    .hero { position: relative; overflow: hidden;
+      height: clamp(540px, 80vh, 880px);
+      height: clamp(540px, 80svh, 880px); /* svh: steady on iOS while the URL bar collapses */
+    }
     .hero-media { position: absolute; inset: 0; }
     .slide {
       position: absolute; inset: 0;
@@ -426,6 +477,57 @@ interface Slide {
     }
     .feat h3 { margin-bottom: 6px; color: var(--gold-2); font-size: 1.06rem; }
     .feat p { color: var(--muted); font-size: 0.94rem; }
+
+    /* ---------- customer reviews ---------- */
+    .chip-rate { border-color: var(--line); }
+    .chip-rate app-icon { color: var(--gold-2); }
+
+    .rate-band {
+      display: flex; align-items: center; gap: 26px; flex-wrap: wrap;
+      padding: 22px 26px; margin-bottom: 26px;
+      background: linear-gradient(115deg, rgba(201, 162, 39, 0.12), rgba(201, 162, 39, 0.03) 60%), var(--surface);
+    }
+    .rate-big { display: flex; align-items: baseline; gap: 6px; }
+    .rate-num { font-family: var(--font-display); font-size: 3.2rem; line-height: 1; color: var(--gold-2); }
+    .rate-of { color: var(--muted); font-size: 1.05rem; }
+    .rate-meta { display: flex; flex-direction: column; gap: 4px; }
+    .rate-note { color: var(--muted); font-size: 0.88rem; }
+    .rate-tags { display: flex; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+    .rate-tags span {
+      display: inline-flex; align-items: center; gap: 7px;
+      border: 1px solid var(--line-soft); border-radius: 999px;
+      padding: 7px 14px; font-size: 0.82rem; font-weight: 600; color: var(--clay);
+      background: rgba(13, 12, 9, 0.5);
+    }
+    .rate-tags app-icon { color: var(--gold-2); }
+
+    /* Partial star fill: two identical star rows stacked; the gold front row
+       is clipped to --fill% (88% for 4.4/5) — pixel-accurate on every browser,
+       no images, no masks. */
+    .stars {
+      position: relative; display: inline-block; line-height: 1;
+      font-size: 1.35rem; letter-spacing: 3px; user-select: none;
+    }
+    .stars-back { color: rgba(228, 199, 102, 0.25); }
+    .stars-front {
+      position: absolute; inset: 0; overflow: hidden; white-space: nowrap;
+      width: var(--fill, 100%); color: var(--gold-2);
+      text-shadow: 0 0 14px rgba(228, 199, 102, 0.35);
+    }
+    .stars-sm { font-size: 1rem; letter-spacing: 2.5px; }
+
+    .rev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
+    .rev { display: flex; flex-direction: column; gap: 12px; }
+    .rev blockquote { color: var(--ivory); font-size: 0.96rem; line-height: 1.6; flex: 1; }
+    .rev figcaption { display: flex; flex-direction: column; border-top: 1px dashed var(--line-soft); padding-top: 12px; }
+    .rev figcaption b { color: var(--gold-2); font-size: 0.95rem; }
+    .rev figcaption span { color: var(--muted); font-size: 0.82rem; }
+
+    @media (max-width: 700px) {
+      .rate-band { gap: 14px; }
+      .rate-tags { margin-left: 0; }
+      .rev-grid { grid-template-columns: 1fr; }
+    }
 
     /* ---------- product preview / slider ---------- */
     .prev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
@@ -564,7 +666,7 @@ interface Slide {
       .farm-band { padding: 70px 0; }
     }
     @media (max-width: 640px) {
-      .hero { height: clamp(500px, 82vh, 640px); }
+      .hero { height: clamp(500px, 82vh, 640px); height: clamp(500px, 82svh, 640px); }
     }
   `]
 })
@@ -575,6 +677,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   farm = FARM;
   socials = SOCIALS;
+  reviews = REVIEWS;
   wa = waLink();
   img = new ProductImage();
 

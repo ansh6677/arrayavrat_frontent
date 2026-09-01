@@ -62,6 +62,14 @@ export const FARM = {
 
   email: 'aryavardairyfarm@gmail.com',
   fssai: '20426061000097',
+
+  /**
+   * Social proof, shown in the hero chip, the home reviews section and the
+   * footer trust list. Update these two values and every badge updates.
+   */
+  rating: 4.4,
+  ratingOutOf: 5,
+  customersServed: '500+',
   /** UPI payment details printed on every bill (the scan-and-pay box). */
   upiId: '8789816971@ptsbi',
   upiName: 'Sourabh Kumar Singh',
@@ -168,6 +176,122 @@ export const SOCIALS: SocialLink[] = [
 export const SOCIAL_ICONS = SOCIALS.filter(s =>
   s.key === 'instagram' || s.key === 'youtube' || s.key === 'whatsapp'
 );
+
+/* =====================================================================
+   Customer reviews — shown in the home page "Loved by our families" section.
+   ===================================================================== */
+
+export interface Review {
+  name: string;
+  area: string;
+  stars: 4 | 5;
+  text: string;
+}
+
+export const REVIEWS: Review[] = [
+  {
+    name: 'Ramesh Prasad',
+    area: 'Ahiyapur, Muzaffarpur',
+    stars: 5,
+    text: 'Milk reaches our home every morning before 7 — still fresh from milking. The cream on top reminds me of my village days.'
+  },
+  {
+    name: 'Sunita Devi',
+    area: 'Mithanpura',
+    stars: 5,
+    text: 'My kids only drink Aryavart A2 milk now. The matka curd is thick and naturally sweet — no comparison with packet dahi.'
+  },
+  {
+    name: 'Amit Kumar Jha',
+    area: 'Bela Industrial Area',
+    stars: 4,
+    text: 'Ordered bilona ghee for the whole family on WhatsApp. Confirmed in minutes, delivered the same evening. Aroma is amazing.'
+  },
+  {
+    name: 'Pooja Singh',
+    area: 'Brahmpura',
+    stars: 5,
+    text: 'The monthly bill PDF on WhatsApp makes hisaab so easy. Pure milk, honest billing — exactly what a family needs.'
+  },
+  {
+    name: 'Vikash Choudhary',
+    area: 'Saraiyaganj',
+    stars: 4,
+    text: 'Paneer is soft and fresh, clearly made the same day. Evening delivery slot suits our shop timings perfectly.'
+  },
+  {
+    name: 'Nisha Kumari',
+    area: 'Kalambagh Road',
+    stars: 5,
+    text: 'We even asked for the lab certificate — they shared it happily. That confidence is why 500+ families trust this farm.'
+  }
+];
+
+/* =====================================================================
+   Delivery slots — the farm delivers twice a day, so orders can be
+   scheduled for the Morning (6–10 AM) or Evening (6–10 PM) window.
+   ===================================================================== */
+
+export interface DeliverySlot {
+  key: 'morning' | 'evening';
+  label: string;
+  /** Human window printed on buttons and in the WhatsApp message. */
+  window: string;
+  /**
+   * Last hour (24h) at which the slot can still be booked for TODAY —
+   * a 9 AM cutoff for the 6–10 AM round, 8 PM for the 6–10 PM round,
+   * so the farm always has time to pack the order.
+   */
+  cutoffHour: number;
+}
+
+export const DELIVERY_SLOTS: DeliverySlot[] = [
+  { key: 'morning', label: 'Morning', window: '6:00 – 10:00 AM', cutoffHour: 9 },
+  { key: 'evening', label: 'Evening', window: '6:00 – 10:00 PM', cutoffHour: 20 }
+];
+
+/** Can this slot still be booked for the given date? (Past dates: never.) */
+export function slotAvailable(dateIso: string, key: DeliverySlot['key'], now: Date = new Date()): boolean {
+  const slot = DELIVERY_SLOTS.find(s => s.key === key);
+  if (!slot || !dateIso) return false;
+  const today = isoDate(now);
+  if (dateIso < today) return false;          // past date
+  if (dateIso > today) return true;           // any future day — both slots open
+  return now.getHours() < slot.cutoffHour;    // today — respect the cutoff
+}
+
+/**
+ * Sensible default when the cart opens: the earliest slot that is still
+ * bookable — today's morning, then today's evening, else tomorrow morning.
+ */
+export function defaultSlotChoice(now: Date = new Date()): { date: string; slot: DeliverySlot['key'] } {
+  const today = isoDate(now);
+  if (slotAvailable(today, 'morning', now)) return { date: today, slot: 'morning' };
+  if (slotAvailable(today, 'evening', now)) return { date: today, slot: 'evening' };
+  const t = new Date(now);
+  t.setDate(t.getDate() + 1);
+  return { date: isoDate(t), slot: 'morning' };
+}
+
+/** "Tue, 02 Sep 2026" — how the chosen delivery day reads in the WhatsApp order. */
+export function niceDay(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/**
+ * True on phones/tablets, where upi:// and wa.me open the actual apps.
+ * On a laptop the UPI deep link does nothing, so callers show a
+ * copy-the-id fallback instead of navigating to a dead link.
+ */
+export function isProbablyPhone(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/android|iphone|ipod|windows phone/i.test(ua)) return true;
+  // iPadOS 13+ reports itself as macOS — the touch points give it away.
+  return /ipad|macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1;
+}
 
 /**
  * Local photo for each product category.

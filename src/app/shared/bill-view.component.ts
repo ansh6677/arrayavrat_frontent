@@ -2,8 +2,8 @@ import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { Bill, DailyEntry, Payment } from '../core/models';
-import { FARM, niceDate, upiPayLink } from '../core/farm';
-import { downloadBillPdf } from '../core/pdf';
+import { FARM, isProbablyPhone, niceDate, upiPayLink } from '../core/farm';
+import { billPdfFile, downloadBillPdf } from '../core/pdf';
 import { ToastService } from '../core/toast.service';
 import { IconComponent } from './icon.component';
 
@@ -149,7 +149,10 @@ import { IconComponent } from './icon.component';
     </div>
 
     <div class="mt no-print bill-actions">
-      @if (bill.outstanding > 0) {
+      <!-- The Pay button belongs to the CUSTOMER side only: the customer
+           dashboard sets showPay, the management pages never do — staff
+           record payments through the "+ Payment" popup instead. -->
+      @if (showPay && bill.outstanding > 0) {
         <button class="btn btn-wa pay-btn" (click)="payNow()"
                 title="Opens your UPI app with ₹{{ bill.outstanding }} pre-filled">
           <app-icon name="wallet" [size]="16" /> Pay ₹{{ bill.outstanding | number: '1.0-2' }} via UPI
@@ -192,6 +195,8 @@ export class BillViewComponent {
 
   @Input({ required: true }) bill!: Bill;
   @Input() canManage = false;
+  /** Show the "Pay via UPI" button — set only by the customer dashboard. */
+  @Input() showPay = false;
   @Output() removeEntry = new EventEmitter<DailyEntry>();
   @Output() removePayment = new EventEmitter<Payment>();
 
@@ -213,12 +218,21 @@ export class BillViewComponent {
    */
   payNow() {
     const b = this.bill;
-    const link = upiPayLink(b.outstanding, `${FARM.name} bill ${b.to}`);
     try {
       navigator.clipboard?.writeText(FARM.upiId).catch(() => {});
     } catch { /* clipboard is best-effort */ }
-    window.location.href = link;
-    this.toast.info(`Opening your UPI app for ₹${b.outstanding}… On a computer, pay to ${FARM.upiId} (copied).`, 6500);
+
+    if (isProbablyPhone()) {
+      // Phones/tablets: hand the amount straight to GPay/PhonePe/Paytm.
+      window.location.href = upiPayLink(b.outstanding, `${FARM.name} bill ${b.to}`);
+      this.toast.info(`Opening your UPI app for ₹${b.outstanding}…`, 5000);
+    } else {
+      // Laptops have no upi:// handler — navigating there just shows a browser
+      // error, so the id is copied and shown instead.
+      this.toast.info(
+        `Pay ₹${b.outstanding} to UPI ID ${FARM.upiId} (${FARM.upiName}) — the id is copied. ` +
+        'Open GPay/PhonePe/Paytm on your phone and paste it.', 9000);
+    }
   }
 
   /** dd-mm-yyyy of the day before an ISO date — labels the previous-balance cutoff. */
@@ -231,30 +245,30 @@ export class BillViewComponent {
   }
 
   /**
-   * One tap → the RIGHT chat, every time. wa.me can open a specific number but
-   * can never attach a file, and the system share sheet can attach the file
-   * but can never pick the contact — so this does the half a computer is
-   * allowed to do automatically (download the PDF + open the customer's own
-   * chat with a note) and leaves one human step: attach and send.
+   * Share the ACTUAL bill PDF on WhatsApp.
+   *
+   * Phones (Android + iPhone): the Web Share API hands the real PDF file to
+   * the system share sheet — the person taps WhatsApp, picks the chat, and the
+   * PDF itself is sent. No download-then-attach dance.
+   *
+   * Laptops / older browsers (no file sharing): the next best thing — the PDF
+   * is downloaded and the customer's WhatsApp chat opens with a ready note, so
+   * only one human step remains: attach the freshly downloaded file and send.
    */
   async shareOnWhatsApp() {
     if (this.shareBusy) return;
     this.shareBusy = true;
 
-    // Open the tab NOW, inside the click, so popup blockers stay quiet;
-    // the address is filled in once the PDF is ready.
-    const win = window.open('about:blank', '_blank');
+    // Can this browser hand a real file to the share sheet? Probed with a tiny
+    // dummy PDF *before* any await, so the answer is known while we are still
+    // inside the click. Phones answer yes and never see the fallback tab;
+    // laptops answer no, and the tab must open NOW to stay popup-blocker-safe.
+    const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+    const probe = new File([new Blob(['%'], { type: 'application/pdf' })], 'probe.pdf', { type: 'application/pdf' });
+    const fileShare = typeof nav.share === 'function' && nav.canShare?.({ files: [probe] }) === true;
+    const win = fileShare ? null : window.open('about:blank', '_blank');
 
     const b = this.bill;
-    try {
-      await downloadBillPdf(b);
-      this.toast.info(
-        `Bill PDF downloaded ✓ — ${b.customerName}'s WhatsApp chat is opening. ` +
-        'Attach the PDF (📎 → Document → the newest file) and send.', 8000);
-    } catch {
-      this.toast.error('The PDF could not be generated — sending the note only.');
-    }
-
     const note =
       `Namaste ${b.customerName} ji! Your ${FARM.name} bill for ` +
       `${niceDate(b.from)} to ${niceDate(b.to)} is attached as a PDF.` +
@@ -262,6 +276,41 @@ export class BillViewComponent {
         ? `\n\nPay instantly (₹${b.outstanding}): ${upiPayLink(b.outstanding, FARM.name + ' bill ' + b.to)}`
         : '') +
       '\nThank you!';
+
+    let file: File | null = null;
+    try {
+      file = await billPdfFile(b);
+    } catch {
+      this.toast.error('The PDF could not be generated — sending the note only.');
+    }
+
+    // ---- Phones: the real PDF goes into the system share sheet ----
+    if (file && fileShare) {
+      try {
+        await nav.share({
+          files: [file],
+          title: `${FARM.name} bill`,
+          text: note
+        });
+        this.toast.success(`Bill PDF shared — pick WhatsApp → ${b.customerName} and send.`, 6000);
+      } catch (e) {
+        // The person closed the share sheet — that's a choice, not an error.
+        if ((e as DOMException)?.name !== 'AbortError') {
+          this.toast.error('Sharing failed — the PDF has been downloaded instead.');
+          this.saveFile(file);
+        }
+      }
+      this.shareBusy = false;
+      return;
+    }
+
+    // ---- Laptops / old browsers: download + open the right chat ----
+    if (file) {
+      this.saveFile(file);
+      this.toast.info(
+        `Bill PDF downloaded ✓ — ${b.customerName}'s WhatsApp chat is opening. ` +
+        'Attach it (📎 → Document → newest file) or just drag the PDF into the chat, then send.', 9000);
+    }
 
     // Registered numbers are 10 digits; wa.me needs the country code.
     const digits = String(b.phone || '').replace(/\D/g, '');
@@ -274,5 +323,17 @@ export class BillViewComponent {
       window.location.href = url;              // popup blocked — last resort
     }
     this.shareBusy = false;
+  }
+
+  /** Saves an already-built PDF File to the device (the fallback path). */
+  private saveFile(file: File) {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 }

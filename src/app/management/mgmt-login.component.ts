@@ -47,6 +47,7 @@ import { FARM } from '../core/farm';
   styles: [`
     .mlogin {
       min-height: 100vh;
+      min-height: 100dvh; /* iOS Safari: track the real viewport under the toolbars */
       display: grid;
       place-items: center;
       background:
