@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { Bill, DailyEntry, Payment } from '../core/models';
-import { FARM, isProbablyPhone, niceDate, upiPayLink } from '../core/farm';
+import { FARM, isProbablyPhone, monthLabel, niceDate, upiPayLink } from '../core/farm';
 import { billPdfFile, downloadBillPdf } from '../core/pdf';
 import { ToastService } from '../core/toast.service';
 import { IconComponent } from './icon.component';
@@ -98,10 +98,15 @@ import { IconComponent } from './icon.component';
             </thead>
             <tbody>
               @for (p of bill.payments; track p.id) {
-                <tr>
+                <tr [class.old-pay-row]="!!p.forPeriod">
                   <td>{{ p.paymentDate | date: 'dd MMM yyyy' }}</td>
                   <td>{{ p.mode }}</td>
-                  <td>{{ p.note || '—' }}</td>
+                  <td>
+                    @if (p.forPeriod) {
+                      <span class="old-pay-chip">OLD · {{ monthLabel(p.forPeriod) }}</span>
+                    }
+                    {{ p.note || '—' }}
+                  </td>
                   <td class="num">{{ p.amount | number: '1.0-2' }}</td>
                   @if (canManage) {
                     <td class="right no-print">
@@ -172,6 +177,14 @@ import { IconComponent } from './icon.component';
   styles: [`
     .pay-btn { background: linear-gradient(135deg, #2BB673, #1E9E62); border-color: transparent; }
 
+    /* Old payments (past month's dues) stand out in amber. */
+    .old-pay-row td { background: rgba(217, 142, 50, 0.10); }
+    .old-pay-chip {
+      display: inline-block; margin-right: 6px; padding: 2px 8px; border-radius: 999px;
+      background: rgba(217, 142, 50, 0.18); border: 1px solid rgba(217, 142, 50, 0.55);
+      color: #E5A55D; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap;
+    }
+
     /* The action row wraps instead of colliding when space runs out. */
     .bill-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; align-items: center; }
 
@@ -187,6 +200,7 @@ import { IconComponent } from './icon.component';
   `]
 })
 export class BillViewComponent {
+  monthLabel = monthLabel;
   private toast = inject(ToastService);
 
   /** True while the PDF is being generated for download / share. */

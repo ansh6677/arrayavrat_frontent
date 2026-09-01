@@ -58,6 +58,8 @@ export interface Payment {
   paymentDate: string;
   mode?: string;
   note?: string;
+  /** YYYY-MM of the old billing cycle this payment clears; unset for normal payments. */
+  forPeriod?: string;
 }
 
 export interface Expense {
