@@ -46,6 +46,16 @@
 
 html { scroll-behavior: smooth; }
 
+/* -------- one behaviour on every device --------
+   · tap-highlight: Android/iOS flash a grey/blue box on tap — desktop doesn't.
+   · touch-action: kills the 300ms double-tap-zoom delay on quantity steppers,
+     slot pickers and slider arrows, so taps feel as instant as clicks.
+   · overflow-x on html/body: any 1px overhang scrolls the whole page sideways
+     on phones while desktops show nothing — clip it everywhere. */
+html, body { overflow-x: clip; }
+a, button, .btn, [role="button"] { -webkit-tap-highlight-color: transparent; }
+button, .btn, input, select, textarea, [role="button"] { touch-action: manipulation; }
+
 body {
   font-family: var(--font-body);
   background:
@@ -227,6 +237,17 @@ select {
 select option { background: #14110A; color: var(--ivory); }
 input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.7; }
 input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+/* iOS Safari draws date fields as its own grey pill with centered text and a
+   collapsed height when empty — strip the native chrome so the control matches
+   Android/desktop, and pin the height/alignment it otherwise loses. */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+}
+input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 
 /* The grid owns the vertical rhythm — the field drops its own margin, or a
    wrapped row and the row beside it disagree about the gap. */
@@ -304,14 +325,17 @@ table.tbl tr:hover td { background: rgba(228, 199, 102, 0.05); }
 /* ---------- management panel ---------- */
 .mgmt {
   --side-w: 248px;
-  display: grid; grid-template-columns: var(--side-w) 1fr; min-height: 100vh; background: var(--coal);
+  display: grid; grid-template-columns: var(--side-w) 1fr; background: var(--coal);
+  /* dvh tracks the iOS Safari toolbars; the vh line is the fallback for old browsers */
+  min-height: 100vh; min-height: 100dvh;
   transition: grid-template-columns 0.24s ease;
 }
 .mgmt-side {
   background: linear-gradient(180deg, #0B0A06, #12100A);
   border-right: 1px solid var(--line-soft); color: var(--ivory);
   padding: 20px 14px; display: flex; flex-direction: column; gap: 18px;
-  position: sticky; top: 0; height: 100vh; z-index: 30;
+  position: sticky; top: 0; z-index: 30;
+  height: 100vh; height: 100dvh;
 }
 /* the logo row: brand on the left, the collapse arrow on the right */
 .side-head { display: flex; align-items: center; gap: 8px; }

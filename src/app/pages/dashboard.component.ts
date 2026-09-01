@@ -56,7 +56,8 @@ import { BillViewComponent } from '../shared/bill-view.component';
         </div>
 
         @if (bill) {
-          <app-bill-view [bill]="bill" />
+          <!-- showPay: the Pay-via-UPI button lives on the customer side only. -->
+          <app-bill-view [bill]="bill" [showPay]="true" />
         } @else if (!loading && !error) {
           <p class="muted">Select a date range above and press <b>View bill</b>.</p>
         }

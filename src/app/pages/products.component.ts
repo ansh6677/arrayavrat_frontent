@@ -212,7 +212,7 @@ import { ProductImage } from '../shared/product-image';
     .pc-add.done { background: var(--ok-soft); color: var(--ok); box-shadow: none; }
     .pc-wa { padding: 11px 14px; }
 
-    .cart-fab { position: sticky; bottom: 18px; display: flex; justify-content: center; margin-top: 28px; z-index: 40; }
+    .cart-fab { position: sticky; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; margin-top: 28px; z-index: 40; }
     .cart-fab .btn { box-shadow: var(--shadow); }
 
     @media (max-width: 420px) {

@@ -46,6 +46,7 @@ import { IconComponent } from './icon.component';
           </div>
           <p class="foot-about">{{ farm.description }}</p>
           <ul class="foot-trust">
+            <li><app-icon name="star" [size]="15" /> Rated {{ farm.rating }} by {{ farm.customersServed }} happy customers</li>
             <li><app-icon name="truck" [size]="15" /> Doorstep within 2 hours</li>
             <li><app-icon name="shield" [size]="15" /> Lab certificate on request</li>
             <li><app-icon name="pot" [size]="15" /> Traditional bilona methods</li>
