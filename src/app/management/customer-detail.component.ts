@@ -91,7 +91,8 @@ import { IconComponent } from '../shared/icon.component';
         [bill]="bill"
         [canManage]="auth.isFullAdmin()"
         (removeEntry)="deleteEntry($event)"
-        (removePayment)="deletePayment($event)" />
+        (removePayment)="deletePayment($event)"
+        (paymentConfirmed)="loadBill()" />
     }
 
     <!-- ================= Daily Entry popup ================= -->
@@ -759,15 +760,20 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   async deletePayment(p: Payment) {
+    // A PENDING row is a customer's unverified claim — it was never counted in
+    // the khata, so deleting it rejects the claim and changes no totals.
+    const pending = p.status === 'PENDING';
     const ok = await this.confirm.ask({
-      title: 'Delete this payment?',
-      message: `₹${p.amount} will be removed, and the outstanding balance will go back up by that much.`,
-      confirmLabel: 'Delete payment'
+      title: pending ? 'Reject this reported payment?' : 'Delete this payment?',
+      message: pending
+        ? `The customer reported ₹${p.amount} by UPI. Rejecting it removes the claim; the outstanding does not change (it was never deducted).`
+        : `₹${p.amount} will be removed, and the outstanding balance will go back up by that much.`,
+      confirmLabel: pending ? 'Reject claim' : 'Delete payment'
     });
     if (!ok) return;
     this.api.deletePayment(p.id!).subscribe({
       next: () => {
-        this.toast.success('Payment deleted — totals updated.');
+        this.toast.success(pending ? 'Claim rejected.' : 'Payment deleted — totals updated.');
         this.loadBill();
       },
       error: err => this.toast.error(err?.error?.error || 'Delete failed.')

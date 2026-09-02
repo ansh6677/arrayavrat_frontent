@@ -1,8 +1,11 @@
-import { Component, EventEmitter, Input, OnDestroy, Output, inject } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
+import { ApiService } from '../core/api.service';
 import { Bill, DailyEntry, Payment } from '../core/models';
-import { FARM, UpiAppLink, isIos, isProbablyPhone, monthLabel, niceDate, upiAppLinks, upiPayLink, waLink } from '../core/farm';
+import { FARM, monthLabel, newRequestId, niceDate, waLink } from '../core/farm';
+import { saveBlob } from '../core/download';
 import { billPdfFile, downloadBillPdf } from '../core/pdf';
 import { ToastService } from '../core/toast.service';
 import { IconComponent } from './icon.component';
@@ -15,7 +18,7 @@ import { IconComponent } from './icon.component';
 @Component({
   selector: 'app-bill-view',
   standalone: true,
-  imports: [CommonModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent],
   template: `
     <div class="khata print-area">
       <div class="khata-head">
@@ -132,6 +135,50 @@ import { IconComponent } from './icon.component';
         </div>
       }
 
+      @if (pendingClaims.length > 0) {
+        <div class="khata-section-title">Reported by customer — awaiting confirmation</div>
+        <div class="tbl-wrap" style="border: none; border-radius: 0; background: transparent;">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Reported on</th>
+                <th>Mode</th>
+                <th>Reference / UTR</th>
+                <th class="num">Amount (₹)</th>
+                @if (canManage) { <th class="no-print"></th> }
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of pendingClaims; track p.id) {
+                <tr>
+                  <td>{{ p.paymentDate | date: 'dd MMM yyyy' }}</td>
+                  <td>{{ p.mode }}</td>
+                  <td>{{ p.claimedRef || '—' }}</td>
+                  <td class="num">{{ p.amount | number: '1.0-2' }}</td>
+                  @if (canManage) {
+                    <td class="right no-print claim-actions">
+                      <button class="btn btn-wa btn-sm" (click)="confirmClaim(p)" [disabled]="busyClaimId === p.id">
+                        @if (busyClaimId === p.id) { <span class="spinner"></span> } ✓ Confirm
+                      </button>
+                      <button class="btn btn-danger btn-sm" (click)="removePayment.emit(p)" title="Reject this claim">✕</button>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="claim-note">
+          @if (canManage) {
+            Check the bank / UPI statement against the reference, then press <b>Confirm</b>.
+            The amount reduces the outstanding only after that.
+          } @else {
+            Not deducted yet — the farm is verifying this transfer. Your outstanding
+            updates as soon as it is confirmed.
+          }
+        </div>
+      }
+
       <div class="khata-totals">
         @if (bill.previousBalance > 0) {
           <div class="t-prev">
@@ -173,47 +220,73 @@ import { IconComponent } from './icon.component';
 
           @if (payStep === 'pick') {
             <div class="pay-kicker">Paying {{ farmName }}</div>
-            <div class="pay-amt">₹{{ bill!.outstanding | number: '1.0-2' }}</div>
+            <button type="button" class="pay-amt-btn" (click)="copyAmount()">
+              ₹{{ payAmount | number: '1.0-2' }}
+              <span class="copy-tag" [class.copied]="amountCopied">{{ amountCopied ? '✓ Copied' : 'Tap to copy' }}</span>
+            </button>
             <button type="button" class="pay-upi-id" (click)="copyUpiId()">
               UPI ID: <b>{{ upiId }}</b>
               <span class="copy-tag" [class.copied]="copied">{{ copied ? '✓ Copied' : 'Tap to copy' }}</span>
             </button>
 
-            @if (onPhone) {
-              @if (!ios) {
-                <button class="btn btn-wa pay-main" (click)="openUpi(genericLink, 'your UPI app')">
-                  <app-icon name="wallet" [size]="16" /> Open UPI app — pay ₹{{ bill!.outstanding | number: '1.0-2' }}
-                </button>
-                <div class="pay-note">Or pick an app directly:</div>
-              } @else {
-                <div class="pay-note">Choose your UPI app:</div>
-              }
-              <div class="pay-apps">
-                @for (a of appLinks; track a.id) {
-                  <button type="button" class="pay-app" [class]="'pay-app-' + a.id"
-                          (click)="openUpi(a.href, a.label)">{{ a.label }}</button>
-                }
-                @if (ios) {
-                  <button type="button" class="pay-app" (click)="openUpi(genericLink, 'your UPI app')">Other app</button>
-                }
-              </div>
-            } @else {
-              <div class="pay-note">
-                Open GPay / PhonePe / Paytm on your phone and send the amount to the
-                UPI ID above — it is already copied.
-              </div>
-            }
-          } @else if (payStep === 'confirm') {
-            <div class="pay-kicker">Welcome back!</div>
-            <div class="pay-q">Did the payment of <b>₹{{ bill!.outstanding | number: '1.0-2' }}</b> go through?</div>
-            <div class="pay-row">
-              <button class="btn btn-wa" (click)="paidYes()">✓ Yes, paid</button>
-              <button class="btn btn-ghost" (click)="payStep = 'pick'">Not yet — retry</button>
+            <!-- No upi:// buttons here on purpose. UPI apps refuse a browser deep
+                 link to a personal VPA ("payment not allowed"), so the only path
+                 offered is the one that completes: copy the ID, pay inside the app. -->
+            <div class="pay-steps">
+              <div class="pay-steps-title">Three steps:</div>
+              <ol>
+                <li>Tap the UPI ID above to copy it.</li>
+                <li>Open GPay / PhonePe / Paytm → <b>Pay to UPI ID</b> (or <b>Send to UPI ID</b>) → paste.</li>
+                <li>Enter ₹{{ payAmount | number: '1.0-2' }} and pay.</li>
+              </ol>
             </div>
+
+            <div class="pay-qr">
+              <img [src]="qrSrc" [alt]="farmName + ' UPI QR code'" width="112" height="112" />
+              <div class="pay-qr-side">
+                <div class="pay-note"><b>Or scan the QR.</b></div>
+                <button type="button" class="pay-link" (click)="saveQr()" [disabled]="qrBusy">
+                  @if (qrBusy) { <span class="spinner"></span> } Save QR image
+                </button>
+                <div class="pay-note pay-note-sm">
+                  Paying from this same phone? Save it, then in your UPI app tap
+                  <b>Scan</b> → the gallery icon → pick the saved image.
+                </div>
+              </div>
+            </div>
+
+            <button class="btn btn-wa pay-main" (click)="payStep = 'confirm'">
+              <app-icon name="wallet" [size]="16" /> I have paid — tell the farm →
+            </button>
+
+          } @else if (payStep === 'confirm') {
+            <div class="pay-kicker">Almost done</div>
+            <div class="pay-q">Did the payment of <b>₹{{ payAmount | number: '1.0-2' }}</b> go through?</div>
+            <div class="pay-field">
+              <label for="upiref">UPI reference / UTR <span>(optional, helps us verify faster)</span></label>
+              <input id="upiref" name="upiref" [(ngModel)]="payRefInput" autocomplete="off"
+                     placeholder="e.g. 412345678901" />
+            </div>
+            @if (claimError) { <div class="pay-err">{{ claimError }}</div> }
+            <div class="pay-row">
+              <button class="btn btn-wa" (click)="paidYes()" [disabled]="claiming">
+                @if (claiming) { <span class="spinner"></span> } ✓ Yes, paid
+              </button>
+              <button class="btn btn-ghost" (click)="retry()" [disabled]="claiming">Not yet — retry</button>
+            </div>
+            @if (claimError) {
+              <a class="btn btn-wa" [href]="confirmWaLink" target="_blank" rel="noopener">
+                <app-icon name="whatsapp" [size]="16" /> Tell the farm on WhatsApp instead
+              </a>
+            }
+
           } @else {
             <div class="pay-done-ring"><span>✓</span></div>
-            <div class="pay-q">Thank you! Your payment of <b>₹{{ bill!.outstanding | number: '1.0-2' }}</b> is noted.</div>
-            <div class="pay-note">The farm will verify and update your khata shortly. To confirm instantly:</div>
+            <div class="pay-q">Thank you! Your payment of <b>₹{{ payAmount | number: '1.0-2' }}</b> is recorded.</div>
+            <div class="pay-note">
+              It shows on your khata as <b>awaiting confirmation</b> and will be deducted
+              once the farm verifies the transfer. To speed that up:
+            </div>
             <a class="btn btn-wa" [href]="confirmWaLink" target="_blank" rel="noopener">
               <app-icon name="whatsapp" [size]="16" /> Confirm on WhatsApp
             </a>
@@ -285,16 +358,69 @@ import { IconComponent } from './icon.component';
     .copy-tag.copied { color: #9ACE84; border-color: rgba(55, 200, 113, 0.5); }
     .pay-main { width: 100%; justify-content: center; font-size: 1rem; padding: 13px 16px; }
     .pay-note { color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
-    .pay-apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
-    .pay-app {
-      border: 1px solid rgba(228, 199, 102, 0.35); border-radius: 12px; padding: 12px 8px;
-      background: rgba(13, 12, 9, 0.55); color: var(--ivory); font-weight: 700; font-size: 0.9rem;
-      cursor: pointer; transition: transform 0.12s ease, border-color 0.12s ease;
+    .pay-note-sm { font-size: 0.76rem; }
+
+    /* Amount, big and copyable — the app's amount box needs it typed in. */
+    .pay-amt-btn {
+      background: none; border: none; cursor: pointer; padding: 0;
+      color: inherit; font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
     }
-    .pay-app:active { transform: scale(0.97); }
-    .pay-app-gpay { border-color: rgba(66, 133, 244, 0.55); }
-    .pay-app-phonepe { border-color: rgba(103, 58, 183, 0.65); }
-    .pay-app-paytm { border-color: rgba(0, 186, 242, 0.55); }
+    .pay-amt-btn .copy-tag { vertical-align: 8px; }
+
+    /* The three-step instructions that replace the blocked one-tap link. */
+    .pay-steps {
+      text-align: left; background: rgba(0, 0, 0, 0.22);
+      border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+    }
+    .pay-steps-title {
+      font-size: 0.76rem; font-weight: 800; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--gold-2); margin-bottom: 6px;
+    }
+    .pay-steps ol { margin: 0; padding-left: 20px; display: grid; gap: 5px; }
+    .pay-steps li { font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
+    .pay-steps b { color: inherit; }
+
+    /* QR block. */
+    .pay-qr { display: flex; gap: 13px; align-items: flex-start; text-align: left; }
+    .pay-qr img {
+      width: 112px; height: 112px; flex: none; border-radius: 12px;
+      background: #fff; padding: 5px; object-fit: contain;
+    }
+    .pay-qr-side { display: flex; flex-direction: column; gap: 5px; }
+
+
+    /* "I have already paid" — the escape hatch out of the pick step. */
+    .pay-link {
+      background: none; border: none; cursor: pointer; padding: 4px 0;
+      color: var(--gold-2); font-size: 0.86rem; font-weight: 700;
+      text-decoration: underline; text-underline-offset: 3px;
+    }
+
+    /* UTR field on the confirm step. */
+    .pay-field { text-align: left; display: flex; flex-direction: column; gap: 6px; }
+    .pay-field label { font-size: 0.78rem; font-weight: 700; color: var(--gold-2); }
+    .pay-field label span { font-weight: 500; color: var(--muted); }
+    .pay-field input {
+      width: 100%; padding: 11px 13px; border-radius: 12px;
+      border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04);
+      color: inherit; font-size: 0.95rem; font-variant-numeric: tabular-nums;
+    }
+    .pay-field input:focus { outline: none; border-color: var(--gold-2); }
+    .pay-err {
+      background: rgba(214, 92, 78, 0.14); border: 1px solid rgba(214, 92, 78, 0.4);
+      color: #E8A79E; border-radius: 12px; padding: 10px 12px;
+      font-size: 0.84rem; line-height: 1.45; text-align: left;
+    }
+
+    /* ---------- pending customer claims ---------- */
+    .claim-actions { white-space: nowrap; display: flex; gap: 6px; justify-content: flex-end; }
+    .claim-note {
+      margin-top: 8px; padding: 10px 12px; border-radius: 12px;
+      background: rgba(228, 199, 102, 0.08); border: 1px solid var(--line);
+      color: var(--muted); font-size: 0.82rem; line-height: 1.5;
+    }
+    .claim-note b { color: var(--gold-2); }
     .pay-q { color: var(--ivory); font-size: 1.02rem; line-height: 1.5; }
     .pay-q b { color: var(--gold-2); }
     .pay-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
@@ -330,9 +456,10 @@ import { IconComponent } from './icon.component';
     .chip-udhaar { background: rgba(228, 199, 102, 0.12); color: var(--gold-2); border: 1px solid var(--line); }
   `]
 })
-export class BillViewComponent implements OnDestroy {
+export class BillViewComponent {
   monthLabel = monthLabel;
   private toast = inject(ToastService);
+  private api = inject(ApiService);
 
   /** True while the PDF is being generated for download / share. */
   pdfBusy = false;
@@ -344,6 +471,10 @@ export class BillViewComponent implements OnDestroy {
   @Input() showPay = false;
   @Output() removeEntry = new EventEmitter<DailyEntry>();
   @Output() removePayment = new EventEmitter<Payment>();
+  /** Customer reported a UPI payment — the host should reload the bill. */
+  @Output() paymentClaimed = new EventEmitter<Payment>();
+  /** Admin verified a claim — the host should reload the bill. */
+  @Output() paymentConfirmed = new EventEmitter<Payment>();
 
   farm = FARM;
 
@@ -357,38 +488,88 @@ export class BillViewComponent implements OnDestroy {
     }
   }
 
-  /**
-   * On a phone this opens the UPI app with the exact due pre-filled; on a
-   * desktop (no upi:// handler) the UPI id is copied instead, with a toast.
-   */
   // ---------------- UPI pay sheet ----------------
+
+  /*
+   * Deliberately simple: no upi:// deep links, no app buttons, no
+   * came-back-from-the-app detection.
+   *
+   * UPI apps refuse a browser deep link to a personal VPA — every app opened
+   * and then said "payment not allowed", so those buttons were a trap. The
+   * customer copies the UPI ID (or the QR), pays inside their app as an
+   * ordinary transfer, then taps "I have paid" to report it. Because nothing
+   * navigates away from the page, there is no state to stash and restore.
+   */
 
   payOpen = false;
   payStep: 'pick' | 'confirm' | 'done' = 'pick';
   copied = false;
-  onPhone = isProbablyPhone();
-  ios = isIos();
   upiId = FARM.upiId;
   farmName = FARM.name;
-  genericLink = '';
-  appLinks: UpiAppLink[] = [];
   confirmWaLink = '';
-  private awaitingReturn = false;
-  private confirmTimer: ReturnType<typeof setTimeout> | null = null;
-  private visHandler = () => {
-    if (!document.hidden && this.awaitingReturn) this.showConfirm();
-  };
+
+  /** Amount of the attempt in flight — kept separate from bill.outstanding, which reloads. */
+  payAmount = 0;
+  payRefInput = '';
+  amountCopied = false;
+  qrSrc = 'assets/brand/upi-qr.jpg';
+  qrBusy = false;
+  claiming = false;
+  claimError = '';
+  /** One request id per attempt, so a double tap cannot create two claims. */
+  private attemptId = '';
+
+  /** Customer-reported payments that the farm has not verified yet. */
+  get pendingClaims(): Payment[] {
+    return this.bill?.pendingClaims ?? [];
+  }
 
   payNow() {
     const b = this.bill;
     if (!b || b.outstanding <= 0) return;
-    const links = upiAppLinks(b.outstanding, `${FARM.name} bill ${b.to}`);
-    this.genericLink = links.generic;
-    this.appLinks = links.apps;
+    this.beginAttempt(b.outstanding);
+  }
+
+  private beginAttempt(amount: number) {
+    this.payAmount = amount;
+    this.payRefInput = '';
+    this.amountCopied = false;
+    this.attemptId = newRequestId();
+    this.claimError = '';
     this.copied = false;
     this.payStep = 'pick';
     this.payOpen = true;
-    if (!this.onPhone) this.copyUpiId(); // laptops: id ready to paste on the phone
+    this.buildConfirmWaLink(amount);
+  }
+
+  /** The bare figure, ready to paste into the app's amount box. */
+  copyAmount() {
+    const plain = String(Math.round(this.payAmount * 100) / 100);
+    try {
+      navigator.clipboard?.writeText(plain).then(() => {
+        this.amountCopied = true;
+        setTimeout(() => (this.amountCopied = false), 2200);
+      }).catch(() => {});
+    } catch { /* clipboard is best-effort */ }
+  }
+
+  /**
+   * Save the QR to the gallery. On the customer's own phone the screen cannot
+   * be scanned, but every major UPI app can pick a QR image out of the gallery.
+   */
+  async saveQr() {
+    if (this.qrBusy) return;
+    this.qrBusy = true;
+    try {
+      const res = await fetch(this.qrSrc);
+      if (!res.ok) throw new Error('qr fetch failed');
+      saveBlob(await res.blob(), `${FARM.shortName}-upi-qr.jpg`);
+      this.toast.success('QR saved — open it from your gallery inside the UPI app.');
+    } catch {
+      this.toast.error('Could not save the QR. Long-press the image and choose "Save image" instead.');
+    } finally {
+      this.qrBusy = false;
+    }
   }
 
   copyUpiId() {
@@ -400,52 +581,85 @@ export class BillViewComponent implements OnDestroy {
     } catch { /* clipboard is best-effort */ }
   }
 
-  /** Fires the chosen UPI link, then waits for the customer to come back. */
-  openUpi(href: string, label: string) {
-    this.awaitingReturn = true;
-    document.addEventListener('visibilitychange', this.visHandler);
-    // If the tab never went hidden (laptop, or the app is not installed),
-    // still ask after a moment instead of leaving a dead end.
-    if (this.confirmTimer) clearTimeout(this.confirmTimer);
-    this.confirmTimer = setTimeout(() => this.showConfirm(), 4500);
-    this.toast.info(`Opening ${label} for ₹${this.bill?.outstanding}…`, 4000);
-    window.location.href = href;
+  /** "Not yet" — back to the pay screen with a fresh attempt id. */
+  retry() {
+    this.beginAttempt(this.payAmount);
   }
 
-  private showConfirm() {
-    if (!this.payOpen || this.payStep !== 'pick') return;
-    this.awaitingReturn = false;
-    this.cleanupPayWatch();
-    this.payStep = 'confirm';
-  }
-
+  /**
+   * Report the payment to the farm. This is the step that used to be missing
+   * entirely — the old code only built a WhatsApp link, so nothing ever reached
+   * the server and the khata stayed unchanged no matter what the customer did.
+   *
+   * The claim is saved as PENDING: the customer sees it immediately, the admin
+   * gets a Confirm button, and the outstanding moves only after verification.
+   */
   paidYes() {
-    const b = this.bill!;
-    this.payStep = 'done';
+    if (this.claiming) return;
+    this.claiming = true;
+    this.claimError = '';
+    const typed = this.payRefInput.trim();
+    this.api.claimMyPayment({
+      amount: this.payAmount,
+      ref: typed,
+      requestId: this.attemptId || newRequestId()
+    }).subscribe({
+      next: claim => {
+        this.claiming = false;
+        this.payAmount = claim.amount;
+        this.payStep = 'done';
+        this.buildConfirmWaLink(claim.amount, typed);
+        this.paymentClaimed.emit(claim);
+        this.toast.success('Payment reported — the farm will verify it shortly.');
+      },
+      error: err => {
+        this.claiming = false;
+        // Stay on the confirm step: the WhatsApp fallback appears underneath so
+        // the customer is never stuck with an unreportable payment.
+        this.claimError = err?.error?.error
+          || 'Could not reach the farm just now. Please tell us on WhatsApp, or try again.';
+        this.buildConfirmWaLink(this.payAmount, typed);
+      }
+    });
+  }
+
+  private buildConfirmWaLink(amount: number, ref = '') {
+    const b = this.bill;
     const today = new Date().toLocaleDateString('en-IN');
     this.confirmWaLink = waLink(
-      `Payment done ✓\nAmount: ₹${b.outstanding}\nTo UPI ID: ${FARM.upiId}\n` +
-      `Name: ${b.customerName || ''}\nPhone: ${b.phone || ''}\nDate: ${today}\n` +
+      `Payment done ✓\nAmount: ₹${amount}\nTo UPI ID: ${FARM.upiId}\n` +
+      (ref ? `Ref: ${ref}\n` : '') +
+      `Name: ${b?.customerName || ''}\nPhone: ${b?.phone || ''}\nDate: ${today}\n` +
       `Kripya mera khata update kar dein.`
     );
   }
 
   closePay() {
-    this.cleanupPayWatch();
-    this.awaitingReturn = false;
     this.payOpen = false;
     this.payStep = 'pick';
+    this.claimError = '';
   }
 
-  private cleanupPayWatch() {
-    document.removeEventListener('visibilitychange', this.visHandler);
-    if (this.confirmTimer) { clearTimeout(this.confirmTimer); this.confirmTimer = null; }
-  }
+  // ---- admin side: verify a claim ----
 
-  ngOnDestroy() {
-    this.cleanupPayWatch();
-  }
+  busyClaimId: string | null = null;
 
+  /** Admin: accept a customer's reported payment, which finally moves the khata. */
+  confirmClaim(p: Payment) {
+    if (!p.id || this.busyClaimId) return;
+    this.busyClaimId = p.id;
+    this.api.confirmPayment(p.id).subscribe({
+      next: () => {
+        this.busyClaimId = null;
+        this.toast.success(`₹${p.amount} confirmed — the outstanding has been updated.`);
+        this.paymentConfirmed.emit(p);
+      },
+      error: err => {
+        this.busyClaimId = null;
+        this.toast.error(err?.error?.error || 'Could not confirm this payment. Please try again.');
+      }
+    });
+  }
 
   /** dd-mm-yyyy of the day before an ISO date — labels the previous-balance cutoff. */
   dayBefore(iso: string): string {
@@ -484,8 +698,10 @@ export class BillViewComponent implements OnDestroy {
     const note =
       `Namaste ${b.customerName} ji! Your ${FARM.name} bill for ` +
       `${niceDate(b.from)} to ${niceDate(b.to)} is attached as a PDF.` +
+      // No upi:// link here either — apps refuse it for a personal VPA. The
+      // UPI ID is what the customer can actually act on.
       (b.outstanding > 0
-        ? `\n\nPay instantly (₹${b.outstanding}): ${upiPayLink(b.outstanding, FARM.name + ' bill ' + b.to)}`
+        ? `\n\nOutstanding: ₹${b.outstanding}\nPay to UPI ID: ${FARM.upiId} (${FARM.upiName})`
         : '') +
       '\nThank you!';
 

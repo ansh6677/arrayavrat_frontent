@@ -27,6 +27,19 @@ export class ApiService {
     return this.http.get<Bill>(`${API_URL}/customer/bill`, { params });
   }
 
+  /**
+   * "I have paid by UPI" — stored as a PENDING payment. It does not change the
+   * outstanding; an admin confirms it, and only then does the khata move.
+   */
+  claimMyPayment(data: { amount?: number; ref?: string; note?: string; requestId?: string }) {
+    return this.http.post<Payment>(`${API_URL}/customer/payments/claim`, data);
+  }
+
+  /** The customer's own reports that are still waiting for verification. */
+  getMyClaims() {
+    return this.http.get<Payment[]>(`${API_URL}/customer/payments/claim`);
+  }
+
   // ---------------- Admin: customers ----------------
 
   getCustomers() {
@@ -103,6 +116,19 @@ export class ApiService {
 
   deletePayment(id: string) {
     return this.http.delete(`${API_URL}/admin/payments/${id}`);
+  }
+
+  /** Every customer-reported UPI payment awaiting verification, all customers. */
+  getPendingPayments() {
+    return this.http.get<Payment[]>(`${API_URL}/admin/payments/pending`);
+  }
+
+  /**
+   * Verify a customer's claim so it starts counting in the khata. Pass an
+   * amount/date to correct what the customer reported; omit to accept as-is.
+   */
+  confirmPayment(id: string, data: { amount?: number; paymentDate?: string; mode?: string; note?: string } = {}) {
+    return this.http.post<Payment>(`${API_URL}/admin/payments/${id}/confirm`, data);
   }
 
   // ---------------- Admin: expenses ----------------

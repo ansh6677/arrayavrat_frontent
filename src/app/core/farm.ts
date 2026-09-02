@@ -289,19 +289,6 @@ export function niceDay(iso: string): string {
 }
 
 /**
- * True on phones/tablets, where upi:// and wa.me open the actual apps.
- * On a laptop the UPI deep link does nothing, so callers show a
- * copy-the-id fallback instead of navigating to a dead link.
- */
-export function isProbablyPhone(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || '';
-  if (/android|iphone|ipod|windows phone/i.test(ua)) return true;
-  // iPadOS 13+ reports itself as macOS — the touch points give it away.
-  return /ipad|macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1;
-}
-
-/**
  * Local photo for each product category.
  *
  * Products carry an `imageUrl` from the backend, but it can be blank — a newly
@@ -415,58 +402,6 @@ export function newRequestId(): string {
 
 /** First day of the current month (YYYY-MM-DD). */
 /** "just now", "5m ago", "3h ago", "Yesterday", "12 Aug" — feed-style times. */
-/**
- * A UPI deep link with the exact amount pre-filled — one tap opens
- * GPay/PhonePe/Paytm ready to pay. Works wherever the link is tapped on a
- * phone (PDF, WhatsApp, the site); on a desktop it simply does nothing,
- * which callers should handle with a copy-the-id fallback.
- */
-export function upiPayLink(amount: number, note = `${FARM.name} bill`): string {
-  return 'upi://pay?' + upiParams(amount, note);
-}
-
-/** Query string shared by every UPI deep link — always the farm's UPI ID. */
-function upiParams(amount: number, note: string): string {
-  const amt = (Math.round(amount * 100) / 100).toFixed(2);
-  return 'pa=' + encodeURIComponent(FARM.upiId)
-    + '&pn=' + encodeURIComponent(FARM.upiName)
-    + '&am=' + amt
-    + '&cu=INR'
-    + '&tn=' + encodeURIComponent(note.slice(0, 40));
-}
-
-/** True on iPhones/iPads (incl. iPadOS pretending to be macOS). */
-export function isIos(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || '';
-  if (/iphone|ipad|ipod/i.test(ua)) return true;
-  return /macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1;
-}
-
-export interface UpiAppLink { id: string; label: string; href: string; }
-
-/**
- * Direct per-app UPI links for the pay sheet. Android's generic upi:// opens
- * the system chooser with EVERY installed UPI app — perfect. But iOS hands
- * the whole upi:// scheme to a single app (whichever registered it last;
- * for many people that is WhatsApp), so iPhones were landing in WhatsApp Pay.
- * The fix: on iOS the customer taps their app and we use that app's own
- * scheme — GPay tez://, PhonePe phonepe://, Paytm paytmmp:// — all carrying
- * the same UPI ID (8789816971@ptsbi) and amount.
- */
-export function upiAppLinks(amount: number, note = `${FARM.name} bill`)
-  : { generic: string; apps: UpiAppLink[] } {
-  const q = upiParams(amount, note);
-  return {
-    generic: 'upi://pay?' + q,
-    apps: [
-      { id: 'gpay', label: 'Google Pay', href: 'tez://upi/pay?' + q },
-      { id: 'phonepe', label: 'PhonePe', href: 'phonepe://pay?' + q },
-      { id: 'paytm', label: 'Paytm', href: 'paytmmp://pay?' + q }
-    ]
-  };
-}
-
 export function relTime(iso?: string | null): string {
   if (!iso) return '—';
   const then = new Date(iso).getTime();

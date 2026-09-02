@@ -7,7 +7,7 @@ import { ApiService } from '../core/api.service';
 import { saveBlob } from '../core/download';
 import { AuthService } from '../core/auth.service';
 import { productPhoto } from '../core/farm';
-import { DailyEntry, DayDetail, DayPoint, Stats } from '../core/models';
+import { DailyEntry, DayDetail, DayPoint, Payment, Stats } from '../core/models';
 import { IconComponent } from '../shared/icon.component';
 
 @Component({
@@ -36,6 +36,31 @@ import { IconComponent } from '../shared/icon.component';
         </button>
       </div>
     </div>
+
+    <!-- Customers who reported a UPI payment from their dashboard. Nothing has
+         been deducted from their khata yet, so this must be visible without
+         opening each customer page one by one. -->
+    @if (pendingClaims.length > 0) {
+      <div class="claims-banner mb">
+        <div class="claims-head">
+          <app-icon name="wallet" [size]="17" />
+          <b>{{ pendingClaims.length }}</b>
+          {{ pendingClaims.length === 1 ? 'customer has' : 'customers have' }}
+          reported a UPI payment &mdash; waiting for your confirmation
+        </div>
+        <ul class="claims-list">
+          @for (c of pendingClaims; track c.id) {
+            <li>
+              <a [routerLink]="['/management/panel/customers', c.customerId]">{{ c.customerName || c.customerId }}</a>
+              <span class="claims-amt">&#8377;{{ c.amount | number: '1.0-2' }}</span>
+              <span class="claims-ref">{{ c.claimedRef ? 'Ref ' + c.claimedRef : 'no reference given' }}</span>
+              <span class="claims-when">{{ c.paymentDate | date: 'dd MMM' }}</span>
+            </li>
+          }
+        </ul>
+        <div class="claims-foot">Open the customer to verify against your bank statement and confirm.</div>
+      </div>
+    }
 
     @if (loading) {
       <div class="stat-grid mb">
@@ -320,6 +345,29 @@ import { IconComponent } from '../shared/icon.component';
     }
   `,
   styles: [`
+    /* ---------- pending customer payment claims ---------- */
+    .claims-banner {
+      border: 1px solid rgba(228, 199, 102, 0.45); border-radius: 16px;
+      background: linear-gradient(180deg, rgba(228, 199, 102, 0.12), rgba(228, 199, 102, 0.03));
+      padding: 14px 16px;
+    }
+    .claims-head {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      font-size: 0.92rem; color: var(--gold-2); font-weight: 600;
+    }
+    .claims-head b { font-size: 1.05rem; }
+    .claims-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+    .claims-list li {
+      display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+      font-size: 0.86rem; padding: 7px 10px; border-radius: 10px;
+      background: rgba(0, 0, 0, 0.18);
+    }
+    .claims-list a { font-weight: 700; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+    .claims-amt { font-weight: 800; color: var(--gold-2); font-variant-numeric: tabular-nums; }
+    .claims-ref, .claims-when { color: var(--muted); font-size: 0.78rem; }
+    .claims-when { margin-left: auto; }
+    .claims-foot { margin-top: 9px; color: var(--muted); font-size: 0.78rem; }
+
     .dash-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
     .dash-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .month-filter { display: flex; align-items: center; gap: 10px; font-size: 0.84rem; color: var(--muted); }
@@ -389,6 +437,8 @@ export class OverviewComponent implements OnInit {
   auth = inject(AuthService);
 
   stats: Stats | null = null;
+  /** Customer-reported UPI payments across all customers, awaiting verification. */
+  pendingClaims: Payment[] = [];
   photo = (name: string) => productPhoto({ name });
   todayEntries: DailyEntry[] = [];
   loading = true;
@@ -409,6 +459,10 @@ export class OverviewComponent implements OnInit {
     this.load();
     this.api.getEntries({}).subscribe({
       next: list => (this.todayEntries = list.slice(0, 8))
+    });
+    this.api.getPendingPayments().subscribe({
+      next: list => (this.pendingClaims = list),
+      error: () => (this.pendingClaims = [])   // never block the dashboard on this
     });
   }
 

@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-import { FARM, monthLabel, niceDate, upiPayLink } from './farm';
+import { FARM, monthLabel, niceDate } from './farm';
 import { Bill } from './models';
 
 const GOLD: [number, number, number] = [201, 162, 39];
@@ -373,7 +373,14 @@ async function buildBillPdf(bill: Bill) {
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
     doc.text(FARM.upiName + '  ·  Paytm / any UPI app', qx + qw / 2, fy + 11 + qImgH + 22, { align: 'center' });
 
-    // One tap on a phone opens the UPI app with the exact amount filled in.
+    /*
+     * The amount due, spelled out so it can be typed into the UPI app.
+     *
+     * This used to be a "TAP TO PAY" upi:// link. It was dropped because UPI
+     * apps refuse a deep link to a personal VPA — the app opened and then said
+     * "payment not allowed", which on a bill reads as the farm's mistake. The
+     * QR above plus the amount below is the flow that actually completes.
+     */
     if (hasDue) {
       const payY = fy + 11 + qImgH + 30;
       const payW = qw - 28;
@@ -384,8 +391,7 @@ async function buildBillPdf(bill: Bill) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.6);
       doc.setTextColor(23, 19, 7);
-      doc.text('TAP TO PAY  ' + money(bill.outstanding), qx + qw / 2, payY + 13, { align: 'center' });
-      doc.link(payX, payY, payW, 20, { url: upiPayLink(bill.outstanding, FARM.name + ' bill ' + bill.to) });
+      doc.text('AMOUNT TO PAY  ' + money(bill.outstanding), qx + qw / 2, payY + 13, { align: 'center' });
     }
   }
 

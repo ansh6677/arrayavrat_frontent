@@ -64,6 +64,16 @@ export interface Payment {
   note?: string;
   /** YYYY-MM of the old billing cycle this payment clears; unset for normal payments. */
   forPeriod?: string;
+  /**
+   * 'CONFIRMED' (verified by the farm — counts in the khata) or 'PENDING'
+   * (the customer reported a UPI transfer and staff have not checked it yet).
+   * Absent on rows written before claims existed, which means CONFIRMED.
+   */
+  status?: 'CONFIRMED' | 'PENDING';
+  /** UTR / reference number the customer typed when reporting the payment. */
+  claimedRef?: string;
+  confirmedBy?: string;
+  confirmedAt?: string;
 }
 
 export interface Expense {
@@ -96,6 +106,11 @@ export interface Bill {
   /** Dues carried in from before this period. */
   previousBalance: number;
   outstanding: number;
+  /**
+   * UPI payments the customer has reported but the farm has not verified.
+   * Not subtracted from `outstanding` — shown as "awaiting confirmation".
+   */
+  pendingClaims?: Payment[];
 }
 
 export interface AuthResponse {
