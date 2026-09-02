@@ -56,8 +56,10 @@ import { BillViewComponent } from '../shared/bill-view.component';
         </div>
 
         @if (bill) {
-          <!-- showPay: the Pay-via-UPI button lives on the customer side only. -->
-          <app-bill-view [bill]="bill" [showPay]="true" />
+          <!-- showPay: the Pay-via-UPI button lives on the customer side only.
+               paymentClaimed: the reported payment must appear in the
+               "awaiting confirmation" list right away, so reload the bill. -->
+          <app-bill-view [bill]="bill" [showPay]="true" (paymentClaimed)="load()" />
         } @else if (!loading && !error) {
           <p class="muted">Select a date range above and press <b>View bill</b>.</p>
         }
