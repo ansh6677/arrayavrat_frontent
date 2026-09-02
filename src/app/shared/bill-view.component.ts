@@ -106,10 +106,15 @@ import { IconComponent } from './icon.component';
             </thead>
             <tbody>
               @for (p of bill.payments; track p.id) {
-                <tr>
+                <tr [class.old-pay-row]="!!p.forPeriod">
                   <td>{{ p.paymentDate | date: 'dd MMM yyyy' }}</td>
                   <td>{{ p.mode }}</td>
-                  <td>{{ p.note || '—' }}</td>
+                  <td>
+                    @if (p.forPeriod) {
+                      <span class="old-pay-chip">OLD · {{ monthLabel(p.forPeriod) }}</span>
+                    }
+                    {{ p.note || '—' }}
+                  </td>
                   <td class="num">{{ p.amount | number: '1.0-2' }}</td>
                   @if (canManage) {
                     <td class="right no-print">

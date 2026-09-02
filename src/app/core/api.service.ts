@@ -97,7 +97,7 @@ export class ApiService {
 
   // ---------------- Admin: payments ----------------
 
-  addPayment(data: { customerId: string; amount: number; paymentDate?: string; mode?: string; note?: string }) {
+  addPayment(data: { customerId: string; amount: number; paymentDate?: string; mode?: string; note?: string; forPeriod?: string }) {
     return this.http.post<Payment>(`${API_URL}/admin/payments`, data);
   }
 
