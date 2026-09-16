@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 
 import { API_URL } from './farm';
-import { Bill, CouponPreview, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Offer, Payment, Product, Stats, UserInfo } from './models';
+import { Bill, Breakdown, CouponPreview, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Offer, Payment, Product, Stats, UserInfo } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -116,6 +116,12 @@ export class ApiService {
     return this.http.get<DailyEntry[]>(`${API_URL}/admin/entries`, { params });
   }
 
+  /** Deletes the checkbox selection on a bill in one request. */
+  deleteEntriesBulk(ids: string[]) {
+    return this.http.post<{ deleted: number; amount: number }>(
+      `${API_URL}/admin/entries/delete-bulk`, { ids });
+  }
+
   deleteEntry(id: string) {
     return this.http.delete(`${API_URL}/admin/entries/${id}`);
   }
@@ -215,6 +221,13 @@ export class ApiService {
 
   deleteStaff(id: string) {
     return this.http.delete(`${API_URL}/admin/staff/${id}`);
+  }
+
+  /** Who is behind a dashboard figure — cash, online or outstanding. */
+  getBreakdown(type: 'CASH' | 'ONLINE' | 'OUTSTANDING', month?: string) {
+    let params = new HttpParams().set('type', type);
+    if (month) params = params.set('month', month);
+    return this.http.get<Breakdown>(`${API_URL}/admin/stats/breakdown`, { params });
   }
 
   // ---------------- Admin: offers ----------------

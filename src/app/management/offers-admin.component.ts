@@ -69,6 +69,7 @@ import { IconComponent } from '../shared/icon.component';
                 <th>Code</th>
                 <th>Offer</th>
                 <th class="num">Discount</th>
+                <th class="num">Min order</th>
                 <th>Works on</th>
                 <th>Running</th>
                 <th>Status</th>
@@ -88,6 +89,10 @@ import { IconComponent } from '../shared/icon.component';
                     }
                   </td>
                   <td class="num pct">{{ o.percentOff }}%</td>
+                  <td class="num">
+                    @if (o.minOrderAmount > 0) { &#8377;{{ o.minOrderAmount | number: '1.0-0' }} }
+                    @else { <span class="muted">&#8212;</span> }
+                  </td>
                   <td>{{ scopeLabel(o.scope) }}</td>
                   <td class="sm">{{ rangeLabel(o) }}</td>
                   <td>
@@ -147,6 +152,18 @@ import { IconComponent } from '../shared/icon.component';
               </div>
               <span class="hint">Applies to the whole order total.</span>
             </div>
+
+            <div class="field">
+              <label>Minimum order</label>
+              <div class="pct-row">
+                <span class="pct-suffix">&#8377;</span>
+                <input name="omin" type="number" [(ngModel)]="form.minOrderAmount" min="0" step="50" placeholder="0" />
+              </div>
+              <span class="hint">
+                The code only works on orders of this much or more. Leave 0 for no minimum.
+              </span>
+            </div>
+            <div class="field"></div>
 
             <div class="field field-wide">
               <label>Headline</label>
@@ -299,6 +316,7 @@ export class OffersAdminComponent implements OnInit {
       title: '',
       description: '',
       percentOff: 10,
+      minOrderAmount: 0,
       scope: 'BOTH',
       active: true,
       showOnSite: true,
@@ -396,6 +414,8 @@ export class OffersAdminComponent implements OnInit {
     const pct = Number(this.form.percentOff);
     if (!pct || pct <= 0) { this.error = 'The discount must be greater than 0%.'; return; }
     if (pct > 90) { this.error = 'The discount cannot be more than 90%.'; return; }
+    const minOrder = Number(this.form.minOrderAmount) || 0;
+    if (minOrder < 0) { this.error = 'The minimum order amount cannot be negative.'; return; }
     if (this.form.validFrom && this.form.validTo && this.form.validTo < this.form.validFrom) {
       this.error = 'The end date cannot be before the start date.';
       return;
@@ -405,6 +425,7 @@ export class OffersAdminComponent implements OnInit {
       ...this.form,
       code,
       percentOff: pct,
+      minOrderAmount: minOrder,
       title: (this.form.title || '').trim() || this.defaultTitle(),
       description: (this.form.description || '').trim() || null,
       validFrom: this.form.validFrom || null,

@@ -7,7 +7,7 @@ import { ApiService } from '../core/api.service';
 import { saveBlob } from '../core/download';
 import { AuthService } from '../core/auth.service';
 import { productPhoto } from '../core/farm';
-import { DailyEntry, DayDetail, DayPoint, Payment, Stats } from '../core/models';
+import { Breakdown, DailyEntry, DayDetail, DayPoint, Payment, Stats } from '../core/models';
 import { IconComponent } from '../shared/icon.component';
 
 @Component({
@@ -94,20 +94,20 @@ import { IconComponent } from '../shared/icon.component';
           <div class="stat-label">{{ stats.monthLabel }} profit (sales − expenses)</div>
           <div class="stat-value">₹{{ stats.monthProfit | number: '1.0-0' }}</div>
         </div>
-        <div class="stat stat-red">
-          <div class="stat-label">Total outstanding</div>
+        <button type="button" class="stat stat-red stat-click" (click)="openBreakdown('OUTSTANDING')">
+          <div class="stat-label">Total outstanding <span class="stat-go">see who</span></div>
           <div class="stat-value">₹{{ stats.totalOutstanding | number: '1.0-0' }}</div>
-        </div>
-        <div class="stat stat-green">
-          <div class="stat-label">{{ stats.monthLabel }} cash collected</div>
+        </button>
+        <button type="button" class="stat stat-green stat-click" (click)="openBreakdown('CASH')">
+          <div class="stat-label">{{ stats.monthLabel }} cash collected <span class="stat-go">see who</span></div>
           <div class="stat-value">₹{{ stats.monthCashIn | number: '1.0-0' }}</div>
           <div class="stat-sub">Today ₹{{ stats.todayCashIn | number: '1.0-0' }} · hand-to-hand, counter sales included</div>
-        </div>
-        <div class="stat stat-gold">
-          <div class="stat-label">{{ stats.monthLabel }} online collected</div>
+        </button>
+        <button type="button" class="stat stat-gold stat-click" (click)="openBreakdown('ONLINE')">
+          <div class="stat-label">{{ stats.monthLabel }} online collected <span class="stat-go">see who</span></div>
           <div class="stat-value">₹{{ stats.monthOnlineIn | number: '1.0-0' }}</div>
           <div class="stat-sub">Today ₹{{ stats.todayOnlineIn | number: '1.0-0' }} · UPI, bank and other</div>
-        </div>
+        </button>
         <div class="stat">
           <div class="stat-label">Customers</div>
           <div class="stat-value">{{ stats.customerCount }}</div>
@@ -238,6 +238,68 @@ import { IconComponent } from '../shared/icon.component';
     }
 
     <!-- ============ day breakdown popup ============ -->
+    <!-- ============ who is behind a figure ============ -->
+    @if (bdOpen) {
+      <div class="modal-back" (click)="closeBreakdown()">
+        <div class="modal bd-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+          <div class="modal-head">
+            <h3>
+              {{ bd?.title || 'Loading…' }}
+              @if (bd) { <span class="bd-sub">{{ bd.subtitle }}</span> }
+            </h3>
+            <button type="button" class="modal-close" (click)="closeBreakdown()" aria-label="Close">
+              <app-icon name="close" [size]="16" [stroke]="2.2" />
+            </button>
+          </div>
+
+          @if (bdLoading) {
+            <div class="skeleton" style="height: 220px;"></div>
+          } @else if (bdError) {
+            <div class="alert alert-error">{{ bdError }}</div>
+          } @else if (bd; as b) {
+            @if (b.rows.length === 0) {
+              <p class="muted bd-empty">
+                @switch (b.type) {
+                  @case ('OUTSTANDING') { Nobody owes anything — every khata is clear. }
+                  @case ('CASH') { No cash was collected in this month. }
+                  @default { Nothing was collected online in this month. }
+                }
+              </p>
+            } @else {
+              <div class="bd-total">
+                <span>{{ b.rows.length }} {{ b.rows.length === 1 ? 'row' : 'rows' }}</span>
+                <b>₹{{ b.total | number: '1.0-2' }}</b>
+              </div>
+              <div class="tbl-wrap bd-scroll">
+                <table class="tbl">
+                  <tbody>
+                    @for (r of b.rows; track $index) {
+                      <tr>
+                        <td>
+                          @if (r.customerId) {
+                            <a [routerLink]="['/management/panel/customers', r.customerId]"
+                               (click)="closeBreakdown()">{{ r.customerName }}</a>
+                          } @else {
+                            <span class="bd-walkin">{{ r.customerName }}</span>
+                          }
+                          <div class="muted bd-detail">{{ r.detail }}</div>
+                        </td>
+                        <td class="num bd-amt">₹{{ r.amount | number: '1.0-2' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" (click)="closeBreakdown()">Close</button>
+          </div>
+        </div>
+      </div>
+    }
+
     @if (dayOpen) {
       <div class="modal-back" (click)="closeDay()">
         <div class="modal day-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
@@ -412,6 +474,35 @@ import { IconComponent } from '../shared/icon.component';
     .day-num { font-size: 0.62rem; color: var(--muted); }
 
     .day-modal { width: min(720px, 100%); }
+
+    /* Cards that drill through look tappable but must still read as cards. */
+    .stat-click {
+      width: 100%; text-align: left; cursor: pointer; font-family: inherit;
+      transition: border-color 0.15s ease, transform 0.12s ease;
+    }
+    .stat-click:hover { border-color: var(--gold); transform: translateY(-1px); }
+    .stat-click:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    .stat-go {
+      float: right; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--gold-2); opacity: 0; transition: opacity 0.15s ease;
+    }
+    .stat-click:hover .stat-go, .stat-click:focus-visible .stat-go { opacity: 1; }
+    @media (hover: none) { .stat-go { opacity: 0.75; } }
+
+    .bd-modal { width: min(560px, 100%); }
+    .bd-sub { display: block; font-family: var(--font-body); font-size: 0.78rem; color: var(--muted); font-weight: 400; margin-top: 3px; }
+    .bd-total {
+      display: flex; align-items: baseline; justify-content: space-between;
+      padding: 10px 13px; margin-bottom: 10px; border-radius: 12px;
+      background: #100E08; border: 1px solid var(--line-soft);
+    }
+    .bd-total span { font-size: 0.78rem; color: var(--muted); }
+    .bd-total b { font-family: var(--font-display); font-size: 1.25rem; color: var(--gold-2); font-weight: 400; }
+    .bd-scroll { max-height: 46vh; overflow-y: auto; }
+    .bd-detail { font-size: 0.74rem; margin-top: 2px; }
+    .bd-amt { font-family: var(--font-display); font-size: 1.02rem; color: var(--ivory); white-space: nowrap; }
+    .bd-walkin { color: var(--muted); font-style: italic; }
+    .bd-empty { padding: 26px 4px; text-align: center; }
     .day-tot { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
     .dt {
       background: var(--surface); border: 1px solid var(--line-soft); border-radius: 12px;
@@ -520,6 +611,39 @@ export class OverviewComponent implements OnInit {
   barHeight(value: number): number {
     if (value <= 0) return 1;
     return Math.max(3, Math.round((value / this.max) * 100));
+  }
+
+  /* ---------------- who is behind a figure ---------------- */
+
+  bdOpen = false;
+  bdLoading = false;
+  bdError = '';
+  bd: Breakdown | null = null;
+
+  /**
+   * Cash and online follow the month dropdown so the list matches the card
+   * above it. Outstanding is all-time by nature and ignores the month.
+   */
+  openBreakdown(type: 'CASH' | 'ONLINE' | 'OUTSTANDING') {
+    this.bdOpen = true;
+    this.bdLoading = true;
+    this.bdError = '';
+    this.bd = null;
+    this.api.getBreakdown(type, type === 'OUTSTANDING' ? undefined : this.month).subscribe({
+      next: res => {
+        this.bd = res;
+        this.bdLoading = false;
+      },
+      error: err => {
+        this.bdError = err?.error?.error || 'Could not load the breakdown.';
+        this.bdLoading = false;
+      }
+    });
+  }
+
+  closeBreakdown() {
+    this.bdOpen = false;
+    this.bd = null;
   }
 
   openDay(d: DayPoint) {

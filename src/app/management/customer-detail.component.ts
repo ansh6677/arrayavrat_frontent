@@ -92,6 +92,7 @@ import { IconComponent } from '../shared/icon.component';
         [bill]="bill"
         [canManage]="auth.isFullAdmin()"
         (removeEntry)="deleteEntry($event)"
+        (removeSelected)="deleteSelectedEntries($event)"
         (removePayment)="deletePayment($event)"
         (paymentConfirmed)="loadBill()" />
     }
@@ -844,6 +845,33 @@ export class CustomerDetailComponent implements OnInit {
         this.saving = false;
         this.modalError = err?.error?.error || 'Could not save the entries.';
       }
+    });
+  }
+
+  /**
+   * Deletes a ticked selection in one request.
+   *
+   * The confirm names the count and the amount because this is the one action
+   * on the page that can wipe a month of khata in a single tap, and an entry
+   * cannot be undeleted.
+   */
+  async deleteSelectedEntries(entries: DailyEntry[]) {
+    if (entries.length === 0) return;
+    const total = Math.round(entries.reduce((s, e) => s + e.total, 0) * 100) / 100;
+    const ok = await this.confirm.ask({
+      title: `Delete ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}?`,
+      message: `This removes ₹${total.toFixed(2)} from ${this.customer?.name || 'this customer'}'s khata. `
+        + 'Any payment recorded automatically with a paid entry is removed too. This cannot be undone.',
+      confirmLabel: `Delete ${entries.length}`
+    });
+    if (!ok) return;
+
+    this.api.deleteEntriesBulk(entries.map(e => e.id!)).subscribe({
+      next: res => {
+        this.toast.success(`${res.deleted} ${res.deleted === 1 ? 'entry' : 'entries'} deleted — ₹${res.amount} removed.`);
+        this.loadBill();
+      },
+      error: err => this.toast.error(err?.error?.error || 'Could not delete the selected entries.')
     });
   }
 

@@ -11,6 +11,8 @@ export interface AppliedCoupon {
   code: string;
   title: string;
   percentOff: number;
+  /** Order total needed before it works. 0 or absent = no minimum. */
+  minOrderAmount?: number;
 }
 
 /**
@@ -36,10 +38,31 @@ export class CouponService {
   offers = signal<Offer[]>([]);
   private offersLoaded = false;
 
+  /**
+   * Whether the cart has reached the coupon's minimum.
+   *
+   * The coupon stays applied when it hasn't — removing it silently as items
+   * come out of the cart would leave the customer wondering where their
+   * discount went. It simply stops counting, and the cart says why.
+   */
+  meetsMinimum = computed(() => {
+    const coupon = this.applied();
+    const min = coupon?.minOrderAmount || 0;
+    return min <= 0 || this.cart.total() >= min;
+  });
+
+  /** How much more is needed to unlock it; 0 once the minimum is met. */
+  shortfall = computed(() => {
+    const coupon = this.applied();
+    const min = coupon?.minOrderAmount || 0;
+    if (min <= 0 || this.meetsMinimum()) return 0;
+    return Math.round((min - this.cart.total()) * 100) / 100;
+  });
+
   /** What the applied coupon takes off the current cart, in rupees. */
   discount = computed(() => {
     const coupon = this.applied();
-    if (!coupon) return 0;
+    if (!coupon || !this.meetsMinimum()) return 0;
     return Math.round(this.cart.total() * coupon.percentOff) / 100;
   });
 

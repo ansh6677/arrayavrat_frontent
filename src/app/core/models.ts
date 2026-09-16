@@ -317,6 +317,8 @@ export interface Offer {
   title: string;
   description?: string | null;
   percentOff: number;
+  /** Order total needed before the code works. 0 = no minimum. */
+  minOrderAmount: number;
   scope: OfferScope;
   active: boolean;
   /** ISO dates; null means no limit on that end. */
@@ -336,8 +338,29 @@ export interface CouponPreview {
   title?: string | null;
   description?: string | null;
   percentOff: number;
+  /** Order total the code needs; 0 when there is none. */
+  minOrderAmount: number;
   amount: number;
   discount: number;
   payable: number;
   message: string;
+}
+
+
+/** A dashboard figure broken down by who is behind it. */
+export interface BreakdownRow {
+  /** Null for rows that aren't a khata customer (walk-in counter sales). */
+  customerId: string | null;
+  customerName: string;
+  amount: number;
+  detail: string;
+}
+
+export interface Breakdown {
+  type: 'CASH' | 'ONLINE' | 'OUTSTANDING';
+  title: string;
+  subtitle: string;
+  /** Always equals the card that was clicked; rows always sum to it. */
+  total: number;
+  rows: BreakdownRow[];
 }

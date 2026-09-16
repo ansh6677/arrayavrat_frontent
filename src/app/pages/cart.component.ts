@@ -83,10 +83,16 @@ import { ProductImage } from '../shared/product-image';
 
               <!-- ===== coupon code ===== -->
               @if (coupons.applied(); as c) {
-                <div class="srow cp-on">
+                <div class="srow cp-on" [class.cp-waiting]="!coupons.meetsMinimum()">
                   <span><app-icon name="tag" [size]="14" /> {{ c.code }} · {{ c.percentOff }}% off</span>
                   <b>− ₹{{ coupons.discount() | number: '1.0-2' }}</b>
                 </div>
+                @if (!coupons.meetsMinimum()) {
+                  <p class="cp-short">
+                    Add ₹{{ coupons.shortfall() | number: '1.0-2' }} more to use this coupon
+                    (minimum order ₹{{ c.minOrderAmount | number: '1.0-0' }}).
+                  </p>
+                }
                 <button type="button" class="cp-remove" (click)="removeCoupon()">Remove coupon</button>
               } @else {
                 <div class="cp-row">
@@ -208,6 +214,8 @@ import { ProductImage } from '../shared/product-image';
     .cp-row input::placeholder { text-transform: none; letter-spacing: normal; font-weight: 400; }
     .cp-row .btn { flex: none; }
     .cp-msg { font-size: 0.8rem; color: var(--danger); margin: 2px 0 6px; }
+    .cp-short { font-size: 0.78rem; color: var(--gold-2); margin: 4px 0 2px; line-height: 1.5; }
+    .cp-waiting span, .cp-waiting b { opacity: 0.55; }
     .cp-on span { display: inline-flex; align-items: center; gap: 6px; color: var(--gold-2); font-weight: 700; }
     .cp-on b { color: var(--ok); }
     .cp-remove {
@@ -276,7 +284,10 @@ export class CartComponent implements OnInit {
       next: res => {
         this.checking = false;
         if (!res.valid) { this.couponError = res.message; return; }
-        this.coupons.apply({ code: res.code, title: res.title || code, percentOff: res.percentOff });
+        this.coupons.apply({
+          code: res.code, title: res.title || code, percentOff: res.percentOff,
+          minOrderAmount: res.minOrderAmount || 0
+        });
         this.couponCode = '';
       },
       error: () => {

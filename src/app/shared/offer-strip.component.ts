@@ -135,7 +135,10 @@ export class OfferStripComponent implements OnInit {
     const offer = this.coupons.offers().find(o => o.code === code);
     if (!offer) return;
 
-    this.coupons.apply({ code: offer.code, title: offer.title, percentOff: offer.percentOff });
+    this.coupons.apply({
+      code: offer.code, title: offer.title,
+      percentOff: offer.percentOff, minOrderAmount: offer.minOrderAmount || 0
+    });
     // Clipboard is a bonus, not the mechanism — it is blocked on plain HTTP and
     // in some in-app browsers, and the coupon is already applied by then.
     try { navigator.clipboard?.writeText(code); } catch { /* no clipboard */ }

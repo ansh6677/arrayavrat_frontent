@@ -42,9 +42,32 @@ import { IconComponent } from './icon.component';
       <div class="khata-section-title">Purchases</div>
       @if (bill.entries.length > 0) {
         <div class="tbl-wrap" style="border: none; border-radius: 0; background: transparent;">
+          @if (canManage && bill.entries.length > 0) {
+            <div class="bulk-bar no-print" [class.on]="selected.size > 0">
+              <label class="bulk-all">
+                <input type="checkbox" [checked]="allChosen()" [indeterminate]="someChosen()"
+                       (change)="toggleAll()" aria-label="Select all entries" />
+                <span>
+                  @if (selected.size > 0) {
+                    {{ selected.size }} selected · ₹{{ selectedTotal() | number: '1.0-2' }}
+                  } @else {
+                    Select entries to delete several at once
+                  }
+                </span>
+              </label>
+              @if (selected.size > 0) {
+                <button class="btn btn-ghost btn-sm" (click)="clearSelection()">Clear</button>
+                <button class="btn btn-danger btn-sm" (click)="removeSelected.emit(chosenEntries())">
+                  Delete {{ selected.size }} {{ selected.size === 1 ? 'entry' : 'entries' }}
+                </button>
+              }
+            </div>
+          }
+
           <table class="tbl">
             <thead>
               <tr>
+                @if (canManage) { <th class="no-print pick-col"></th> }
                 <th>Date</th>
                 <th>Product</th>
                 <th class="num">Qty</th>
@@ -55,7 +78,13 @@ import { IconComponent } from './icon.component';
             </thead>
             <tbody>
               @for (e of bill.entries; track e.id) {
-                <tr [class.old-due-row]="e.oldDue">
+                <tr [class.old-due-row]="e.oldDue" [class.row-chosen]="selected.has(e.id!)">
+                  @if (canManage) {
+                    <td class="no-print pick-col">
+                      <input type="checkbox" [checked]="selected.has(e.id!)" (change)="toggle(e.id!)"
+                             [attr.aria-label]="'Select ' + (e.productName || 'entry')" />
+                    </td>
+                  }
                   <td>{{ e.entryDate | date: 'dd MMM yyyy' }}</td>
                   <td>
                     @if (e.oldDue) {
@@ -89,7 +118,7 @@ import { IconComponent } from './icon.component';
             </tbody>
             <tfoot>
               <tr>
-                <td [attr.colspan]="canManage ? 4 : 4">Total purchases (this period)</td>
+                <td [attr.colspan]="canManage ? 5 : 4">Total purchases (this period)</td>
                 <td class="num">₹{{ bill.periodTotal | number: '1.0-2' }}</td>
                 @if (canManage) { <td class="no-print"></td> }
               </tr>
@@ -333,6 +362,22 @@ import { IconComponent } from './icon.component';
     </div>
   `,
   styles: [`
+    .bulk-bar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 9px 12px; margin-bottom: 10px;
+      border: 1px dashed var(--line-soft); border-radius: 12px; background: #100E08;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .bulk-bar.on { border-style: solid; border-color: var(--gold); background: var(--ghee-soft); }
+    .bulk-all { display: flex; align-items: center; gap: 9px; cursor: pointer; flex: 1; min-width: 0; }
+    .bulk-all span { font-size: 0.82rem; color: var(--muted); }
+    .bulk-bar.on .bulk-all span { color: var(--gold-2); font-weight: 700; }
+    .pick-col { width: 38px; }
+    .pick-col input, .bulk-all input {
+      width: 17px; height: 17px; accent-color: var(--gold); cursor: pointer; flex: none;
+    }
+    .row-chosen > td { background: rgba(228, 199, 102, 0.07); }
+
     .chip-offer {
       display: inline-block; margin-left: 6px; padding: 1px 9px; border-radius: 999px;
       font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em;
@@ -489,9 +534,48 @@ export class BillViewComponent {
 
   @Input({ required: true }) bill!: Bill;
   @Input() canManage = false;
+
+  /**
+   * Ids ticked for deletion. Held here rather than on the entry objects so a
+   * bill reload can't carry a stale tick into a row that no longer exists.
+   */
+  selected = new Set<string>();
+
+  toggle(id: string) {
+    if (this.selected.has(id)) this.selected.delete(id);
+    else this.selected.add(id);
+  }
+
+  allChosen(): boolean {
+    return this.bill.entries.length > 0 && this.selected.size === this.bill.entries.length;
+  }
+
+  someChosen(): boolean {
+    return this.selected.size > 0 && !this.allChosen();
+  }
+
+  /** Select-all doubles as clear-all once everything is ticked. */
+  toggleAll() {
+    if (this.allChosen()) this.selected.clear();
+    else this.bill.entries.forEach(e => e.id && this.selected.add(e.id));
+  }
+
+  clearSelection() {
+    this.selected.clear();
+  }
+
+  chosenEntries(): DailyEntry[] {
+    return this.bill.entries.filter(e => e.id && this.selected.has(e.id));
+  }
+
+  /** Shown on the bar so the amount is known before anything is deleted. */
+  selectedTotal(): number {
+    return Math.round(this.chosenEntries().reduce((s, e) => s + e.total, 0) * 100) / 100;
+  }
   /** Show the "Pay via UPI" button — set only by the customer dashboard. */
   @Input() showPay = false;
   @Output() removeEntry = new EventEmitter<DailyEntry>();
+  @Output() removeSelected = new EventEmitter<DailyEntry[]>();
   @Output() removePayment = new EventEmitter<Payment>();
   /** Customer reported a UPI payment — the host should reload the bill. */
   @Output() paymentClaimed = new EventEmitter<Payment>();
