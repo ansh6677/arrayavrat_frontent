@@ -164,6 +164,7 @@ export class MgmtLayoutComponent implements OnInit {
     { link: '/management/panel/extra-sales', icon: 'cart', label: 'Extra Sells' },
     { link: '/management/panel/expenses', icon: 'wallet', label: 'Expenses' },
     { link: '/management/panel/products', icon: 'bottle', label: 'Products' },
+    { link: '/management/panel/offers', icon: 'tag', label: 'Offers' },
     { link: '/management/panel/staff', icon: 'key', label: 'Login Management', adminOnly: true }
   ];
 

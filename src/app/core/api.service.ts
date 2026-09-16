@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 
 import { API_URL } from './farm';
-import { Bill, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Payment, Product, Stats, UserInfo } from './models';
+import { Bill, CouponPreview, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Offer, Payment, Product, Stats, UserInfo } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -18,6 +18,27 @@ export class ApiService {
 
   getCategories() {
     return this.http.get<string[]>(`${API_URL}/public/categories`);
+  }
+
+  // ---------------- Public: offers ----------------
+
+  /** Live, advertisable coupons — what the strip across the top of the site shows. */
+  getLiveOffers() {
+    return this.http.get<Offer[]>(`${API_URL}/public/offers`);
+  }
+
+  /**
+   * Checks a typed code against the cart total. A wrong code comes back as
+   * `valid: false` with a message, not as an HTTP error.
+   */
+  validateCoupon(code: string, amount: number) {
+    const params = new HttpParams().set('code', code).set('amount', String(amount));
+    return this.http.get<CouponPreview>(`${API_URL}/public/offers/validate`, { params });
+  }
+
+  /** Counts one redemption when the order is actually sent to WhatsApp. */
+  markCouponUsed(code: string) {
+    return this.http.post(`${API_URL}/public/offers/${encodeURIComponent(code)}/used`, {});
   }
 
   // ---------------- Customer ----------------
@@ -63,7 +84,7 @@ export class ApiService {
 
   // ---------------- Admin: daily entries ----------------
 
-  addEntry(data: { customerId: string; productId: string; quantity: number; rate?: number; entryDate?: string; note?: string; paid?: boolean; paymentMode?: string }) {
+  addEntry(data: { customerId: string; productId: string; quantity: number; rate?: number; entryDate?: string; note?: string; paid?: boolean; paymentMode?: string; packLabel?: string; couponCode?: string }) {
     return this.http.post<DailyEntry>(`${API_URL}/admin/entries`, data);
   }
 
@@ -75,12 +96,16 @@ export class ApiService {
     paid?: boolean;
     paymentMode?: string;
     note?: string;
-    items: { productId: string; quantity: number; rate?: number }[];
+    items: { productId: string; quantity: number; rate?: number; packLabel?: string }[];
+    /** Coupon applied to every entry this save creates. */
+    couponCode?: string;
     /** Unique id per save tap — the backend ignores an accidental repeat. */
     requestId?: string;
   }) {
-    return this.http.post<{ created: number; days: number; totalAmount: number; duplicate?: boolean }>(
-      `${API_URL}/admin/entries/bulk`, data);
+    return this.http.post<{
+      created: number; days: number; totalAmount: number;
+      discount?: number; couponCode?: string | null; duplicate?: boolean;
+    }>(`${API_URL}/admin/entries/bulk`, data);
   }
 
   getEntries(filter: { customerId?: string; from?: string; to?: string }) {
@@ -190,6 +215,30 @@ export class ApiService {
 
   deleteStaff(id: string) {
     return this.http.delete(`${API_URL}/admin/staff/${id}`);
+  }
+
+  // ---------------- Admin: offers ----------------
+
+  getOffers() {
+    return this.http.get<Offer[]>(`${API_URL}/admin/offers`);
+  }
+
+  /** Just the codes that work today for the given scope (entry-sheet chips). */
+  getLiveOffersFor(scope: 'WEBSITE' | 'KHATA' | 'BOTH') {
+    const params = new HttpParams().set('scope', scope);
+    return this.http.get<Offer[]>(`${API_URL}/admin/offers/live`, { params });
+  }
+
+  addOffer(offer: Offer) {
+    return this.http.post<Offer>(`${API_URL}/admin/offers`, offer);
+  }
+
+  updateOffer(id: string, offer: Offer) {
+    return this.http.put<Offer>(`${API_URL}/admin/offers/${id}`, offer);
+  }
+
+  deleteOffer(id: string) {
+    return this.http.delete(`${API_URL}/admin/offers/${id}`);
   }
 
   // ---------------- Admin: stats ----------------

@@ -1,9 +1,11 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
-import { CartService } from '../core/cart.service';
+import { ApiService } from '../core/api.service';
+import { CartService, CartItem, linePrice } from '../core/cart.service';
+import { CouponService } from '../core/coupon.service';
 import {
   DELIVERY_SLOTS, DeliverySlot, defaultSlotChoice, isoDate, niceDay, slotAvailable, waLink
 } from '../core/farm';
@@ -34,30 +36,36 @@ import { ProductImage } from '../shared/product-image';
           <div class="cart-grid">
             <!-- ============ items ============ -->
             <div>
-              @for (i of cart.items(); track i.product.id) {
+              @for (i of cart.items(); track i.key) {
                 <div class="citem">
                   <div class="citem-media">
                     <img [src]="img.src(i.product)" [alt]="i.product.name"
                          loading="lazy" (error)="img.failed(i.product)" />
                   </div>
                   <div class="citem-body">
-                    <div class="citem-name">{{ i.product.name }}</div>
-                    <div class="muted citem-rate">₹{{ i.product.price | number: '1.0-2' }} / {{ i.product.unit }}</div>
+                    <div class="citem-name">
+                      {{ i.product.name }}
+                      @if (i.variant) { <span class="pack-tag">{{ i.variant.label }}</span> }
+                    </div>
+                    <div class="muted citem-rate">
+                      ₹{{ price(i) | number: '1.0-2' }} / {{ i.variant?.label || i.product.unit }}
+                    </div>
                     <div class="qty">
-                      <button type="button" (click)="dec(i.product.id!, i.qty)"
-                              [attr.aria-label]="'Less ' + i.product.name">
+                      <button type="button" (click)="dec(i)" [attr.aria-label]="'Less ' + i.product.name">
                         <app-icon name="minus" [size]="14" [stroke]="2.6" />
                       </button>
-                      <span>{{ i.qty | number: '1.0-2' }} {{ i.product.unit }}</span>
-                      <button type="button" (click)="inc(i.product.id!, i.qty)"
-                              [attr.aria-label]="'More ' + i.product.name">
+                      <span>
+                        {{ i.qty | number: '1.0-2' }}
+                        @if (i.variant) { × {{ i.variant.label }} } @else { {{ i.product.unit }} }
+                      </span>
+                      <button type="button" (click)="inc(i)" [attr.aria-label]="'More ' + i.product.name">
                         <app-icon name="plus" [size]="14" [stroke]="2.6" />
                       </button>
                     </div>
                   </div>
                   <div class="citem-end">
-                    <div class="citem-total">₹{{ i.qty * i.product.price | number: '1.0-2' }}</div>
-                    <button class="btn btn-danger btn-sm" (click)="cart.remove(i.product.id!)">Remove</button>
+                    <div class="citem-total">₹{{ i.qty * price(i) | number: '1.0-2' }}</div>
+                    <button class="btn btn-danger btn-sm" (click)="cart.remove(i.key)">Remove</button>
                   </div>
                 </div>
               }
@@ -71,7 +79,28 @@ import { ProductImage } from '../shared/product-image';
             <div class="card summary">
               <h3>Order summary</h3>
               <div class="srow"><span class="muted">Items</span><b>{{ cart.count() }}</b></div>
-              <div class="srow total"><span>Total</span><b>₹{{ cart.total() | number: '1.0-2' }}</b></div>
+              <div class="srow"><span class="muted">Subtotal</span><b>₹{{ cart.total() | number: '1.0-2' }}</b></div>
+
+              <!-- ===== coupon code ===== -->
+              @if (coupons.applied(); as c) {
+                <div class="srow cp-on">
+                  <span><app-icon name="tag" [size]="14" /> {{ c.code }} · {{ c.percentOff }}% off</span>
+                  <b>− ₹{{ coupons.discount() | number: '1.0-2' }}</b>
+                </div>
+                <button type="button" class="cp-remove" (click)="removeCoupon()">Remove coupon</button>
+              } @else {
+                <div class="cp-row">
+                  <input name="ccode" [(ngModel)]="couponCode" (keyup.enter)="applyCoupon()"
+                         placeholder="Have a coupon code?" aria-label="Coupon code"
+                         autocapitalize="characters" autocomplete="off" spellcheck="false" />
+                  <button type="button" class="btn btn-outline btn-sm" (click)="applyCoupon()" [disabled]="checking">
+                    @if (checking) { <span class="spinner"></span> } Apply
+                  </button>
+                </div>
+                @if (couponError) { <p class="cp-msg">{{ couponError }}</p> }
+              }
+
+              <div class="srow total"><span>Total</span><b>₹{{ coupons.payable() | number: '1.0-2' }}</b></div>
 
               <!-- ===== delivery schedule (two rounds a day) ===== -->
               <div class="field mt">
@@ -119,7 +148,7 @@ import { ProductImage } from '../shared/product-image';
               @if (formError) { <div class="alert alert-error">{{ formError }}</div> }
               <button class="btn btn-wa btn-block" (click)="orderOnWhatsApp()">
                 <app-icon name="whatsapp" [size]="18" />
-                Order on WhatsApp — ₹{{ cart.total() | number: '1.0-2' }}
+                Order on WhatsApp — ₹{{ coupons.payable() | number: '1.0-2' }}
               </button>
               <p class="muted shint">Tapping the button opens WhatsApp with your full order pre-filled — just hit send.</p>
             </div>
@@ -149,6 +178,11 @@ import { ProductImage } from '../shared/product-image';
     .citem-media img { width: 100%; height: 100%; object-fit: contain; }
     .citem-name { font-weight: 700; color: var(--ivory); }
     .citem-rate { font-size: 0.85rem; margin: 2px 0 8px; }
+    .pack-tag {
+      display: inline-block; margin-left: 7px; padding: 1px 9px; border-radius: 999px;
+      font-size: 0.7rem; font-weight: 800; letter-spacing: 0.04em;
+      background: var(--ghee-soft); color: var(--gold-2); border: 1px solid var(--line);
+    }
     .qty { display: inline-flex; align-items: center; gap: 4px; border: 1.5px solid var(--line-soft); border-radius: 999px; padding: 3px; background: #100E08; }
     .qty button {
       width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer;
@@ -164,6 +198,24 @@ import { ProductImage } from '../shared/product-image';
     .srow.total { border-bottom: none; font-family: var(--font-display); font-size: 1.25rem; }
     .srow.total b { color: var(--gold-2); }
     .shint { font-size: 0.8rem; margin-top: 10px; text-align: center; }
+
+    /* ---------- coupon ---------- */
+    .cp-row { display: flex; gap: 8px; padding: 12px 0 4px; }
+    .cp-row input {
+      flex: 1; min-width: 0; height: 40px;
+      text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
+    }
+    .cp-row input::placeholder { text-transform: none; letter-spacing: normal; font-weight: 400; }
+    .cp-row .btn { flex: none; }
+    .cp-msg { font-size: 0.8rem; color: var(--danger); margin: 2px 0 6px; }
+    .cp-on span { display: inline-flex; align-items: center; gap: 6px; color: var(--gold-2); font-weight: 700; }
+    .cp-on b { color: var(--ok); }
+    .cp-remove {
+      background: none; border: none; cursor: pointer; padding: 4px 0 8px;
+      font-family: var(--font-body); font-size: 0.78rem; color: var(--muted);
+      text-decoration: underline dotted; text-underline-offset: 3px;
+    }
+    .cp-remove:hover { color: var(--danger); }
 
     /* ---------- delivery slot picker ---------- */
     .slot-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -192,9 +244,52 @@ import { ProductImage } from '../shared/product-image';
     }
   `]
 })
-export class CartComponent {
+export class CartComponent implements OnInit {
   cart = inject(CartService);
+  coupons = inject(CouponService);
+  private api = inject(ApiService);
   img = new ProductImage();
+
+  /* ---- coupon ---- */
+  couponCode = '';
+  couponError = '';
+  checking = false;
+
+  ngOnInit() {
+    // Needed so a code applied on a previous visit can be checked against the
+    // campaigns that are actually still running.
+    this.coupons.loadOffers();
+  }
+
+  /**
+   * Verified on the server before it is stored, so the figure that ends up in
+   * the WhatsApp message is always one the farm will honour.
+   */
+  applyCoupon() {
+    const code = this.couponCode.trim().toUpperCase();
+    this.couponError = '';
+    if (!code) { this.couponError = 'Enter a coupon code first.'; return; }
+    if (this.cart.items().length === 0) { this.couponError = 'Add something to your cart first.'; return; }
+
+    this.checking = true;
+    this.api.validateCoupon(code, this.cart.total()).subscribe({
+      next: res => {
+        this.checking = false;
+        if (!res.valid) { this.couponError = res.message; return; }
+        this.coupons.apply({ code: res.code, title: res.title || code, percentOff: res.percentOff });
+        this.couponCode = '';
+      },
+      error: () => {
+        this.checking = false;
+        this.couponError = 'Could not check that code. Please check your connection and try again.';
+      }
+    });
+  }
+
+  removeCoupon() {
+    this.coupons.clear();
+    this.couponError = '';
+  }
 
   name = '';
   phone = '';
@@ -237,12 +332,18 @@ export class CartComponent {
     }
   }
 
-  inc(id: string, qty: number) {
-    this.cart.setQty(id, qty + 0.5);
+  price(i: CartItem): number { return linePrice(i); }
+
+  /** Packs step in whole numbers; loose products keep the 0.5 step. */
+  private step(i: CartItem): number { return i.variant ? 1 : 0.5; }
+
+  inc(i: CartItem) {
+    this.cart.setQty(i.key, i.qty + this.step(i));
   }
 
-  dec(id: string, qty: number) {
-    this.cart.setQty(id, Math.max(0.5, qty - 0.5));
+  dec(i: CartItem) {
+    const step = this.step(i);
+    this.cart.setQty(i.key, Math.max(step, i.qty - step));
   }
 
   orderOnWhatsApp() {
@@ -269,12 +370,21 @@ export class CartComponent {
 
     const lines: string[] = ['I want to order:', ''];
     items.forEach((i, idx) => {
-      const lineTotal = Math.round(i.qty * i.product.price * 100) / 100;
+      const unit = linePrice(i);
+      const lineTotal = Math.round(i.qty * unit * 100) / 100;
+      const measure = i.variant ? `${i.qty} × ${i.variant.label}` : `${i.qty} ${i.product.unit}`;
       lines.push(`${idx + 1}) ${i.product.name}`);
-      lines.push(`    ${i.qty} ${i.product.unit} × ₹${i.product.price} = ₹${lineTotal}`);
+      lines.push(`    ${measure} × ₹${unit} = ₹${lineTotal}`);
     });
     lines.push('');
-    lines.push(`Total: ₹${this.cart.total()}`);
+    const coupon = this.coupons.applied();
+    if (coupon) {
+      lines.push(`Subtotal: ₹${this.cart.total()}`);
+      lines.push(`Coupon ${coupon.code} (${coupon.percentOff}% off): -₹${this.coupons.discount()}`);
+      lines.push(`Total: ₹${this.coupons.payable()}`);
+    } else {
+      lines.push(`Total: ₹${this.cart.total()}`);
+    }
     lines.push(`Delivery: ${slot.label} (${slot.window}) — ${niceDay(this.slotDate)}`);
     lines.push(`Name: ${this.name.trim()}`);
     lines.push(`Mobile: ${digits}`);
@@ -283,6 +393,11 @@ export class CartComponent {
     lines.push('');
     lines.push('Please confirm my order.');
 
+    // Opened first: a popup blocker treats a window opened after an async call
+    // as unsolicited, and the order matters more than the counter.
     window.open(waLink(lines.join('\n')), '_blank');
+    if (coupon) {
+      this.api.markCouponUsed(coupon.code).subscribe({ error: () => { /* counter only */ } });
+    }
   }
 }
