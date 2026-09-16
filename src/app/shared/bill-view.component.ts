@@ -63,13 +63,22 @@ import { IconComponent } from './icon.component';
                       @if (e.note) { <span class="muted">· {{ e.note }}</span> }
                     } @else {
                       {{ e.productName }}
+                      @if (e.packLabel) { <span class="chip-offer">{{ e.packCount }} × {{ e.packLabel }}</span> }
                       @if (e.paid) { <span class="chip-paid">✓ Paid</span> } @else { <span class="chip-udhaar">Credit</span> }
+                      @if (e.couponCode) {
+                        <span class="chip-offer">{{ e.couponCode }} −{{ e.discountPercent }}%</span>
+                      }
                       @if (e.note) { <span class="muted">· {{ e.note }}</span> }
                     }
                   </td>
                   <td class="num">@if (e.oldDue) { — } @else { {{ e.quantity | number: '1.0-2' }} {{ e.unit }} }</td>
                   <td class="num">@if (e.oldDue) { — } @else { {{ e.rate | number: '1.0-2' }} }</td>
-                  <td class="num">{{ e.total | number: '1.0-2' }}</td>
+                  <td class="num">
+                    @if (e.discountAmount && e.discountAmount > 0) {
+                      <s class="was">{{ e.grossTotal | number: '1.0-2' }}</s>
+                    }
+                    {{ e.total | number: '1.0-2' }}
+                  </td>
                   @if (canManage) {
                     <td class="right no-print">
                       <button class="btn btn-danger btn-sm" (click)="removeEntry.emit(e)">✕</button>
@@ -190,6 +199,12 @@ import { IconComponent } from './icon.component';
           <div class="t-label">Period purchases</div>
           <div class="t-value">₹{{ bill.periodTotal | number: '1.0-2' }}</div>
         </div>
+        @if (bill.periodDiscount > 0) {
+          <div class="t-saved">
+            <div class="t-label">Offer savings (this period)</div>
+            <div class="t-value">− ₹{{ bill.periodDiscount | number: '1.0-2' }}</div>
+          </div>
+        }
         <div>
           <div class="t-label">Total purchases (all time)</div>
           <div class="t-value">₹{{ bill.lifetimePurchases | number: '1.0-2' }}</div>
@@ -318,6 +333,13 @@ import { IconComponent } from './icon.component';
     </div>
   `,
   styles: [`
+    .chip-offer {
+      display: inline-block; margin-left: 6px; padding: 1px 9px; border-radius: 999px;
+      font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em;
+      background: var(--ghee-soft); color: var(--gold-2); border: 1px solid var(--line);
+    }
+    .was { color: var(--muted); margin-right: 6px; font-weight: 400; }
+    .t-saved .t-value { color: var(--ok); }
     .pay-btn { background: linear-gradient(135deg, #2BB673, #1E9E62); border-color: transparent; }
 
     /* ---------- UPI pay sheet ---------- */

@@ -4,10 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 import { ApiService } from '../core/api.service';
-import { CartService } from '../core/cart.service';
+import { CartService, defaultPack, sellablePacks } from '../core/cart.service';
 import { ToastService } from '../core/toast.service';
 import { waLink } from '../core/farm';
-import { Product } from '../core/models';
+import { Product, ProductVariant } from '../core/models';
 import { IconComponent } from '../shared/icon.component';
 import { ProductImage } from '../shared/product-image';
 
@@ -72,7 +72,7 @@ import { ProductImage } from '../shared/product-image';
                   @if (p.comingSoon) {
                     <span class="pcard-flag flag-soon">Coming soon</span>
                   } @else if (!p.available) {
-                    <span class="pcard-flag flag-out">Currently unavailable</span>
+                    <span class="pcard-flag flag-out">Out of stock</span>
                   }
                 </div>
 
@@ -80,9 +80,21 @@ import { ProductImage } from '../shared/product-image';
                   <h3>{{ p.name }}</h3>
                   <p class="pcard-desc clamp-2">{{ p.description }}</p>
 
+                  @if (packsOf(p).length > 0 && buyable(p)) {
+                    <div class="packs" role="radiogroup" [attr.aria-label]="'Pack size for ' + p.name">
+                      @for (v of packsOf(p); track v.label) {
+                        <button type="button" class="pack" role="radio"
+                                [class.on]="packOf(p)?.label === v.label"
+                                [attr.aria-checked]="packOf(p)?.label === v.label"
+                                (click)="pickPack(p, v)">{{ v.label }}</button>
+                      }
+                    </div>
+                  }
+
                   <div class="pcard-line">
                     <div class="pcard-price">
-                      ₹{{ p.price | number: '1.0-2' }} <span>/ {{ p.unit }}</span>
+                      ₹{{ unitPriceOf(p) | number: '1.0-2' }}
+                      <span>/ {{ packOf(p)?.label || p.unit }}</span>
                     </div>
                     @if (buyable(p)) {
                     <div class="qty">
@@ -186,6 +198,16 @@ import { ProductImage } from '../shared/product-image';
     }
     .pcard-price span { font-family: var(--font-body); font-size: 0.82rem; font-weight: 600; color: var(--muted); }
 
+    .packs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .pack {
+      padding: 5px 12px; border-radius: 999px; cursor: pointer;
+      background: #100E08; border: 1.5px solid var(--line-soft); color: var(--muted);
+      font-family: var(--font-body); font-size: 0.79rem; font-weight: 700;
+      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    }
+    .pack:hover { border-color: var(--gold); color: var(--gold-2); }
+    .pack.on { background: var(--gold-grad); border-color: transparent; color: #171307; }
+
     .qty { display: inline-flex; align-items: center; gap: 4px; border: 1.5px solid var(--line-soft); border-radius: 999px; padding: 3px; background: #100E08; }
     .qty button {
       width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer;
@@ -236,6 +258,8 @@ export class ProductsComponent implements OnInit {
 
   qty: Record<string, number> = {};
   added: Record<string, boolean> = {};
+  /** Chosen pack label per product; unset means "the first available one". */
+  packPick: Record<string, string> = {};
 
   ngOnInit() {
     this.api.getCategories().subscribe({ next: c => (this.categories = c) });
@@ -282,13 +306,38 @@ export class ProductsComponent implements OnInit {
     return list;
   }
 
-  qtyOf(p: Product): number { return this.qty[p.id!] ?? 1; }
-  inc(p: Product) { this.qty[p.id!] = Math.round((this.qtyOf(p) + 0.5) * 100) / 100; }
-  dec(p: Product) {
-    const next = this.qtyOf(p) - 0.5;
-    this.qty[p.id!] = next < 0.5 ? 0.5 : Math.round(next * 100) / 100;
+  packsOf(p: Product): ProductVariant[] { return sellablePacks(p); }
+
+  /** The pack the customer has selected, falling back to the smallest one. */
+  packOf(p: Product): ProductVariant | null {
+    const packs = this.packsOf(p);
+    if (packs.length === 0) return null;
+    return packs.find(v => v.label === this.packPick[p.id!]) || packs[0];
   }
-  totalOf(p: Product): number { return Math.round(this.qtyOf(p) * p.price * 100) / 100; }
+
+  pickPack(p: Product, v: ProductVariant) {
+    this.packPick[p.id!] = v.label;
+  }
+
+  /** Price of one pack, or of one base unit when the product has no packs. */
+  unitPriceOf(p: Product): number {
+    return this.packOf(p)?.price ?? p.price;
+  }
+
+  /**
+   * Packs come in whole numbers — half a 200 g pack is not a thing — while
+   * loose products keep the 0.5 step that suits milk and curd.
+   */
+  private step(p: Product): number { return this.packOf(p) ? 1 : 0.5; }
+
+  qtyOf(p: Product): number { return this.qty[p.id!] ?? 1; }
+  inc(p: Product) { this.qty[p.id!] = Math.round((this.qtyOf(p) + this.step(p)) * 100) / 100; }
+  dec(p: Product) {
+    const step = this.step(p);
+    const next = this.qtyOf(p) - step;
+    this.qty[p.id!] = next < step ? step : Math.round(next * 100) / 100;
+  }
+  totalOf(p: Product): number { return Math.round(this.qtyOf(p) * this.unitPriceOf(p) * 100) / 100; }
 
   /** Only in-stock, launched products can go into the cart. */
   buyable(p: Product): boolean {
@@ -304,22 +353,25 @@ export class ProductsComponent implements OnInit {
   }
 
   addToCart(p: Product) {
-    this.cart.add(p, this.qtyOf(p));
-    this.toast.success(`${p.name} added to cart (${this.qtyOf(p)} ${p.unit})`);
+    const pack = this.packOf(p);
+    this.cart.add(p, this.qtyOf(p), pack);
+    const measure = pack ? `${this.qtyOf(p)} × ${pack.label}` : `${this.qtyOf(p)} ${p.unit}`;
+    this.toast.success(`${p.name} added to cart (${measure})`);
     this.added[p.id!] = true;
     setTimeout(() => (this.added[p.id!] = false), 1300);
   }
 
   /** Quick single-item order in the exact specified WhatsApp format. */
   orderOnWhatsApp(p: Product) {
+    const pack = this.packOf(p);
     const quantity = this.qtyOf(p);
-    const total = this.totalOf(p);
+    const measure = pack ? `${quantity} × ${pack.label}` : `${quantity} ${p.unit}`;
     window.open(
       waLink(
         `I want to order:\n` +
         `Product: ${p.name}\n` +
-        `Quantity: ${quantity} ${p.unit}\n` +
-        `Price: ₹${total}\n` +
+        `Quantity: ${measure}\n` +
+        `Price: ₹${this.totalOf(p)}\n` +
         `Please confirm my order.`
       ),
       '_blank'

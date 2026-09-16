@@ -98,6 +98,16 @@ import { IconComponent } from '../shared/icon.component';
           <div class="stat-label">Total outstanding</div>
           <div class="stat-value">₹{{ stats.totalOutstanding | number: '1.0-0' }}</div>
         </div>
+        <div class="stat stat-green">
+          <div class="stat-label">{{ stats.monthLabel }} cash collected</div>
+          <div class="stat-value">₹{{ stats.monthCashIn | number: '1.0-0' }}</div>
+          <div class="stat-sub">Today ₹{{ stats.todayCashIn | number: '1.0-0' }} · hand-to-hand, counter sales included</div>
+        </div>
+        <div class="stat stat-gold">
+          <div class="stat-label">{{ stats.monthLabel }} online collected</div>
+          <div class="stat-value">₹{{ stats.monthOnlineIn | number: '1.0-0' }}</div>
+          <div class="stat-sub">Today ₹{{ stats.todayOnlineIn | number: '1.0-0' }} · UPI, bank and other</div>
+        </div>
         <div class="stat">
           <div class="stat-label">Customers</div>
           <div class="stat-value">{{ stats.customerCount }}</div>
@@ -218,7 +228,9 @@ import { IconComponent } from '../shared/icon.component';
           }
           <div class="mt muted" style="font-size: 0.88rem;">
             All-time: sales <b>₹{{ stats.totalSales | number: '1.0-0' }}</b> ·
-            received <b>₹{{ stats.totalPaymentsReceived | number: '1.0-0' }}</b> ·
+            received <b>₹{{ stats.totalPaymentsReceived | number: '1.0-0' }}</b>
+            (cash <b>₹{{ stats.totalCashIn | number: '1.0-0' }}</b>,
+            online <b>₹{{ stats.totalOnlineIn | number: '1.0-0' }}</b>) ·
             expenses <b>₹{{ stats.totalExpenses | number: '1.0-0' }}</b>
           </div>
         </div>

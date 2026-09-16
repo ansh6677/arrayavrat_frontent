@@ -422,6 +422,19 @@ async function buildBillPdf(bill: Bill) {
     off = 16;
   }
   row('Period purchases', money(bill.periodTotal), off);
+  // A saving only earns a line when there was one — an always-present
+  // "Savings: 0.00" makes every ordinary bill look like a missed discount.
+  const periodDiscount = Math.round(((bill as any).periodDiscount || 0) * 100) / 100;
+  if (periodDiscount > 0) {
+    off += 16;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    doc.text('Offer savings (this period)', bx, fy + off);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(74, 122, 58);
+    doc.text('- ' + money(periodDiscount), bx + bw, fy + off, { align: 'right' });
+  }
   row('Period payments', money(bill.periodPaid), off + 16);
   row('Total purchases (all time)', money(bill.lifetimePurchases), off + 32);
   row('Total paid (all time)', money(bill.lifetimePaid), off + 48);
