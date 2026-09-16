@@ -1,3 +1,13 @@
+/** One sellable pack — "Half kg" at its own typed price, not a derived one. */
+export interface ProductVariant {
+  label: string;
+  /** How much of the product's base unit one pack holds (0.2, 0.5, 1). */
+  quantity: number;
+  /** What one pack costs. */
+  price: number;
+  available: boolean;
+}
+
 export interface Product {
   id?: string;
   name: string;
@@ -11,6 +21,8 @@ export interface Product {
   comingSoon?: boolean;
   /** Display position on the website — lower comes first. */
   sortOrder?: number;
+  /** Pack sizes. Absent or empty = sold by loose quantity at `price`. */
+  variants?: ProductVariant[] | null;
 }
 
 export interface UserInfo {
@@ -45,6 +57,18 @@ export interface DailyEntry {
   total: number;
   entryDate: string;
   note?: string;
+  /** Pack this entry was sold as, e.g. "Half kg". Absent for loose quantity. */
+  packLabel?: string;
+  /** How many packs — `quantity` stays in base units so kg totals still add up. */
+  packCount?: number;
+  /** Coupon applied when the entry was written. */
+  couponCode?: string;
+  /** Percentage taken off, e.g. 10. */
+  discountPercent?: number;
+  /** quantity x rate, before the discount. Absent on entries written before coupons existed. */
+  grossTotal?: number;
+  /** grossTotal - total. */
+  discountAmount?: number;
   /** true = paid on the spot (auto payment recorded); false = on credit. */
   paid?: boolean;
   linkedPaymentId?: string;
@@ -99,6 +123,8 @@ export interface Bill {
   to: string;
   entries: DailyEntry[];
   periodTotal: number;
+  /** Total knocked off this period's entries by coupons. 0 when none were used. */
+  periodDiscount: number;
   payments: Payment[];
   periodPaid: number;
   lifetimePurchases: number;
@@ -232,6 +258,13 @@ export interface Stats {
   monthExtraSales: number;
   totalExtraSales: number;
   totalPaymentsReceived: number;
+  /** Money collected, split by how it came in. Walk-in counter sales included. */
+  todayCashIn: number;
+  todayOnlineIn: number;
+  monthCashIn: number;
+  monthOnlineIn: number;
+  totalCashIn: number;
+  totalOnlineIn: number;
   totalOutstanding: number;
   todayExpenses: number;
   monthExpenses: number;
@@ -266,4 +299,68 @@ export interface LoginActivity {
   lastManagement: LoginEvent | null;
   lastCustomer: LoginEvent | null;
   recent: LoginEvent[];
+}
+
+
+/* =====================================================================
+   Offers & coupon codes
+   ===================================================================== */
+
+/** Where a coupon may be used. */
+export type OfferScope = 'WEBSITE' | 'KHATA' | 'BOTH';
+
+export interface Offer {
+  id?: string;
+  /** Upper-case, letters and numbers only — what the customer types. */
+  code: string;
+  /** Headline on the site strip, e.g. "10% off everything". */
+  title: string;
+  description?: string | null;
+  percentOff: number;
+  /** Order total needed before the code works. 0 = no minimum. */
+  minOrderAmount: number;
+  scope: OfferScope;
+  active: boolean;
+  /** ISO dates; null means no limit on that end. */
+  validFrom?: string | null;
+  validTo?: string | null;
+  /** Whether the sitewide strip advertises the code. Off = private code. */
+  showOnSite: boolean;
+  /** How many times the code has been applied. */
+  usedCount?: number;
+  createdAt?: string;
+}
+
+/** The backend's verdict on a typed code. A bad code is valid=false, not an error. */
+export interface CouponPreview {
+  valid: boolean;
+  code: string;
+  title?: string | null;
+  description?: string | null;
+  percentOff: number;
+  /** Order total the code needs; 0 when there is none. */
+  minOrderAmount: number;
+  amount: number;
+  discount: number;
+  payable: number;
+  message: string;
+}
+
+
+/** A dashboard figure broken down by who is behind it. */
+export interface BreakdownRow {
+  /** Null for rows that aren't a khata customer (walk-in counter sales). */
+  customerId: string | null;
+  customerName: string;
+  amount: number;
+  detail: string;
+}
+
+export interface Breakdown {
+  type: 'CASH' | 'ONLINE' | 'OUTSTANDING';
+  title: string;
+  subtitle: string;
+  /** Always equals the card that was clicked; rows always sum to it. */
+  total: number;
+  rows: BreakdownRow[];
 }

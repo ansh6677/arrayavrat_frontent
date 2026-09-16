@@ -8,7 +8,7 @@ import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
 import { STOCK_PHOTOS, productPhoto } from '../core/farm';
-import { Product } from '../core/models';
+import { Product, ProductVariant } from '../core/models';
 import { IconComponent } from '../shared/icon.component';
 import { ProductImage } from '../shared/product-image';
 
@@ -86,11 +86,16 @@ import { ProductImage } from '../shared/product-image';
                   </td>
                   <td>{{ p.category }}</td>
                   <td>{{ p.unit }}</td>
-                  <td class="num">{{ p.price | number: '1.0-2' }}</td>
+                  <td class="num">
+                    {{ p.price | number: '1.0-2' }}
+                    @if (p.variants && p.variants.length > 0) {
+                      <div class="pk-count">{{ p.variants.length }} pack{{ p.variants.length === 1 ? '' : 's' }}</div>
+                    }
+                  </td>
                   <td>
                     @if (p.comingSoon) { <span class="badge badge-gold">Coming soon</span> }
                     @else if (p.available) { <span class="badge badge-ok">Available</span> }
-                    @else { <span class="badge badge-off">Not available</span> }
+                    @else { <span class="badge badge-off">Out of stock</span> }
                   </td>
                   @if (auth.isFullAdmin()) {
                     <td class="right actions">
@@ -164,6 +169,34 @@ import { ProductImage } from '../shared/product-image';
                 </div>
               </div>
             </div>
+            <div class="field field-wide">
+              <label>Pack sizes <span class="hint-inline">leave empty to sell by loose quantity</span></label>
+              <span class="hint">
+                Each pack carries its own price, so a small pack can cost more per {{ form.unit | lowercase }}
+                than the base rate — half a kg of paneer at ₹230 rather than ₹210.
+              </span>
+              @if (form.variants && form.variants.length > 0) {
+                <div class="pk-head">
+                  <span>Label</span><span>Holds ({{ form.unit }})</span><span>Price (₹)</span><span></span><span></span>
+                </div>
+                @for (v of form.variants; track $index) {
+                  <div class="pk-row">
+                    <input [(ngModel)]="v.label" [name]="'vl' + $index" placeholder="Half kg" />
+                    <input type="number" [(ngModel)]="v.quantity" [name]="'vq' + $index" min="0" step="0.05" placeholder="0.5" />
+                    <input type="number" [(ngModel)]="v.price" [name]="'vp' + $index" min="0" step="5" placeholder="230" />
+                    <span class="pk-rate" [class.over]="ratePremium(v) > 0">{{ rateHint(v) }}</span>
+                    <button type="button" class="pk-del" (click)="removePack($index)"
+                            [attr.aria-label]="'Remove pack ' + (v.label || $index + 1)">
+                      <app-icon name="trash" [size]="14" />
+                    </button>
+                  </div>
+                }
+              }
+              <button type="button" class="btn btn-outline btn-sm pk-add" (click)="addPack()">
+                <app-icon name="plus" [size]="14" [stroke]="2.4" /> Add a pack size
+              </button>
+            </div>
+
             <div class="field">
               <label>Display position <span class="hint-inline">1 shows first on the website</span></label>
               <input type="number" name="pord" [(ngModel)]="form.sortOrder" min="1" step="1" />
@@ -172,7 +205,7 @@ import { ProductImage } from '../shared/product-image';
               <label>Status</label>
               <select name="pstatus" [ngModel]="status()" (ngModelChange)="setStatus($event)">
                 <option value="available">Available</option>
-                <option value="out">Not available</option>
+                <option value="out">Out of stock</option>
                 <option value="soon">Coming soon</option>
               </select>
             </div>
@@ -189,6 +222,29 @@ import { ProductImage } from '../shared/product-image';
   `,
   styles: [`
 
+
+    .pk-head, .pk-row {
+      display: grid; grid-template-columns: 1.2fr 0.9fr 0.9fr 1fr 34px;
+      gap: 8px; align-items: center;
+    }
+    .pk-head { margin: 10px 0 2px; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .pk-row { margin-bottom: 7px; }
+    .pk-row input { height: 38px; }
+    .pk-rate { font-size: 0.76rem; color: var(--muted); }
+    .pk-rate.over { color: var(--gold-2); }
+    .pk-del {
+      width: 32px; height: 32px; border-radius: 9px; cursor: pointer;
+      display: grid; place-items: center;
+      background: var(--danger-soft); border: none; color: var(--danger);
+    }
+    .pk-del:hover { background: rgba(228, 104, 90, 0.28); }
+    .pk-add { margin-top: 6px; }
+    .pk-count { font-size: 0.7rem; color: var(--gold-2); font-weight: 700; }
+    @media (max-width: 620px) {
+      .pk-head { display: none; }
+      .pk-row { grid-template-columns: 1fr 1fr; }
+      .pk-rate { grid-column: 1 / -1; }
+    }
 
     .th-order, .td-order { width: 84px; }
     .ord-box { width: 70px; padding: 7px 8px; text-align: center; font-weight: 700; }
@@ -270,7 +326,43 @@ export class ProductsAdminComponent implements OnInit {
   }
 
   private blank(): Product {
-    return { name: '', category: '', description: '', unit: 'Litre', price: 0, imageUrl: '', available: true, comingSoon: false, sortOrder: this.products.length + 1 };
+    return { name: '', category: '', description: '', unit: 'Litre', price: 0, imageUrl: '', available: true, comingSoon: false, sortOrder: this.products.length + 1, variants: [] };
+  }
+
+  /* ---------------- pack sizes ---------------- */
+
+  addPack() {
+    if (!this.form.variants) this.form.variants = [];
+    this.form.variants.push({ label: '', quantity: 0, price: 0, available: true });
+  }
+
+  removePack(index: number) {
+    this.form.variants?.splice(index, 1);
+  }
+
+  /** What this pack works out to per base unit. */
+  packRate(v: ProductVariant): number {
+    return v.quantity > 0 ? Math.round((v.price / v.quantity) * 100) / 100 : 0;
+  }
+
+  /** How far above the base rate this pack sits — the grace amount, made visible. */
+  ratePremium(v: ProductVariant): number {
+    if (!v.quantity || !this.form.price) return 0;
+    return Math.round((this.packRate(v) - this.form.price) * 100) / 100;
+  }
+
+  /**
+   * Shown live as the price is typed, so the premium on a small pack is a
+   * decision rather than something discovered later on a bill.
+   */
+  rateHint(v: ProductVariant): string {
+    if (!v.quantity || !v.price) return '';
+    const rate = this.packRate(v);
+    const premium = this.ratePremium(v);
+    const base = `₹${rate}/${this.form.unit}`;
+    if (premium > 0) return `${base} · ₹${premium} above base`;
+    if (premium < 0) return `${base} · ₹${Math.abs(premium)} below base`;
+    return base;
   }
 
   load() {
@@ -305,7 +397,9 @@ export class ProductsAdminComponent implements OnInit {
 
   startEdit(p: Product) {
     this.editing = p;
-    this.form = { ...p };
+    // Packs are copied, not shared: editing a row then cancelling must not
+    // leave the table showing changes that were never saved.
+    this.form = { ...p, variants: (p.variants || []).map(v => ({ ...v })) };
     this.error = '';
     this.formOpen = true;
   }
@@ -408,6 +502,18 @@ export class ProductsAdminComponent implements OnInit {
     // Keep an existing category when editing; fill it in for new products.
     this.form.category = this.form.category?.trim() || this.deriveCategory(this.form.name);
     if (!this.form.price || this.form.price <= 0) { this.error = 'Price must be greater than 0.'; return; }
+
+    // Rows left completely blank are dropped rather than rejected — tapping
+    // "Add a pack size" and changing your mind shouldn't block the save.
+    const packs = (this.form.variants || []).filter(v => v.label.trim() || v.quantity > 0 || v.price > 0);
+    for (const v of packs) {
+      if (!v.label.trim()) { this.error = 'Every pack needs a label, e.g. "Half kg".'; return; }
+      if (!v.quantity || v.quantity <= 0) { this.error = `Pack "${v.label}" needs how much ${this.form.unit} it holds.`; return; }
+      if (!v.price || v.price <= 0) { this.error = `Pack "${v.label}" needs a price greater than 0.`; return; }
+    }
+    const labels = packs.map(v => v.label.trim().toLowerCase());
+    if (new Set(labels).size !== labels.length) { this.error = 'Two packs share the same label.'; return; }
+    this.form.variants = packs;
 
     this.saving = true;
     const done = (message: string) => {

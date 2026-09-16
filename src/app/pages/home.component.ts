@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
-import { CartService } from '../core/cart.service';
+import { CartService, defaultPack } from '../core/cart.service';
 import { FARM, REVIEWS, SOCIALS, waLink } from '../core/farm';
 import { Product } from '../core/models';
 import { IconComponent } from '../shared/icon.component';
@@ -976,7 +976,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   resume() { this.paused = false; }
 
   quickAdd(p: Product) {
-    this.cart.add(p, 1);
+    // The strip has no pack picker, so one of the smallest pack goes in — the
+    // customer can change it on the cart page.
+    this.cart.add(p, 1, defaultPack(p));
     this.added[p.id!] = true;
     setTimeout(() => (this.added[p.id!] = false), 1300);
   }

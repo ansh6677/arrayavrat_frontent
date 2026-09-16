@@ -38,17 +38,48 @@ import { IconComponent } from '../shared/icon.component';
 
       <!-- Two clear groups: customers the farm added vs self-registered ones. -->
       <div class="src-tabs">
-        <button class="chip" [class.on]="src === 'ALL'" (click)="src = 'ALL'">All ({{ customers.length }})</button>
+        <button class="chip" [class.on]="src === 'ALL'" (click)="src = 'ALL'">All ({{ inScope().length }})</button>
         <button class="chip" [class.on]="src === 'ADF'" (click)="src = 'ADF'">Cust by ADF ({{ countBy('ADF') }})</button>
         <button class="chip" [class.on]="src === 'PAGE'" (click)="src = 'PAGE'">Cust by Page ({{ countBy('PAGE') }})</button>
+      </div>
+
+      <!--
+        Inactive customers are hidden by default. They are people who have
+        stopped taking delivery, so leaving them in the working list makes the
+        daily round longer than it is — but they are never deleted, because
+        their khata and history have to stay reachable.
+      -->
+      <div class="src-tabs status-tabs">
+        <button class="chip" [class.on]="status === 'ACTIVE'" (click)="status = 'ACTIVE'">
+          Active ({{ countActive(true) }})
+        </button>
+        <button class="chip" [class.on]="status === 'INACTIVE'" (click)="status = 'INACTIVE'">
+          Inactive ({{ countActive(false) }})
+        </button>
+        <button class="chip" [class.on]="status === 'ALL'" (click)="status = 'ALL'">
+          Everyone ({{ customers.length }})
+        </button>
       </div>
 
       @if (loading) {
         <div class="skeleton" style="height: 240px;"></div>
       } @else if (filtered().length === 0) {
-        <p class="muted">No customers found@if (q) { for “{{ q }}” }.</p>
+        <p class="muted">
+          No {{ status === 'INACTIVE' ? 'inactive' : status === 'ACTIVE' ? 'active' : '' }} customers
+          found@if (q) { for “{{ q }}” }.
+          @if (status === 'ACTIVE' && countActive(false) > 0) {
+            <button type="button" class="link-btn" (click)="status = 'ALL'">
+              Show the {{ countActive(false) }} inactive {{ countActive(false) === 1 ? 'one' : 'ones' }} too
+            </button>
+          }
+        </p>
       } @else {
-        <p class="muted list-count">{{ filtered().length }} of {{ customers.length }} customers</p>
+        <p class="muted list-count">
+          {{ filtered().length }} of {{ customers.length }} customers
+          @if (status === 'ACTIVE' && countActive(false) > 0) {
+            · {{ countActive(false) }} inactive hidden
+          }
+        </p>
         <div class="tbl-wrap">
           <table class="tbl">
             <thead>
@@ -165,6 +196,13 @@ import { IconComponent } from '../shared/icon.component';
     }
   `,
   styles: [`
+    .status-tabs { margin-top: 8px; }
+    .link-btn {
+      background: none; border: none; cursor: pointer; padding: 0 0 0 4px;
+      font-family: var(--font-body); font-size: inherit; color: var(--gold-2);
+      text-decoration: underline dotted; text-underline-offset: 3px;
+    }
+    .link-btn:hover { color: #F2DE9B; }
     .src-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
     .src-tag {
       font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
@@ -223,6 +261,8 @@ export class CustomersComponent implements OnInit {
   q = '';
   /** Source filter: ALL | ADF (farm-added) | PAGE (self-registered). */
   src: 'ALL' | 'ADF' | 'PAGE' = 'ALL';
+  /** Inactive customers are off the working list until asked for. */
+  status: 'ACTIVE' | 'INACTIVE' | 'ALL' = 'ACTIVE';
   loading = true;
   addOpen = false;
   saving = false;
@@ -245,8 +285,22 @@ export class CustomersComponent implements OnInit {
     return c.signupSource === 'PAGE' ? 'PAGE' : 'ADF';
   }
 
+  /**
+   * Everyone the active/inactive choice lets through. The source tabs count
+   * within this, so "Cust by ADF (12)" never promises rows the list won't show.
+   */
+  inScope(): UserInfo[] {
+    if (this.status === 'ALL') return this.customers;
+    const wantActive = this.status === 'ACTIVE';
+    return this.customers.filter(c => c.active === wantActive);
+  }
+
   countBy(src: 'ADF' | 'PAGE'): number {
-    return this.customers.filter(c => this.sourceOf(c) === src).length;
+    return this.inScope().filter(c => this.sourceOf(c) === src).length;
+  }
+
+  countActive(active: boolean): number {
+    return this.customers.filter(c => c.active === active).length;
   }
 
   togglePreferred(id: string) {
@@ -296,7 +350,8 @@ export class CustomersComponent implements OnInit {
 
   filtered(): UserInfo[] {
     const q = this.q.trim().toLowerCase();
-    let list = this.src === 'ALL' ? this.customers : this.customers.filter(c => this.sourceOf(c) === this.src);
+    const scoped = this.inScope();
+    let list = this.src === 'ALL' ? scoped : scoped.filter(c => this.sourceOf(c) === this.src);
     if (!q) return list;
     return list.filter(c => (c.name + ' ' + c.phone).toLowerCase().includes(q));
   }

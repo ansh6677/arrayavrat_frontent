@@ -8,8 +8,9 @@ import { saveBlob } from '../core/download';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
+import { sellablePacks } from '../core/cart.service';
 import { isoDate, isoMonth, monthLabel, monthStart, newRequestId } from '../core/farm';
-import { Bill, DailyEntry, Payment, Product, UserInfo } from '../core/models';
+import { Bill, DailyEntry, Offer, Payment, Product, ProductVariant, UserInfo } from '../core/models';
 import { BillViewComponent } from '../shared/bill-view.component';
 import { IconComponent } from '../shared/icon.component';
 
@@ -91,6 +92,7 @@ import { IconComponent } from '../shared/icon.component';
         [bill]="bill"
         [canManage]="auth.isFullAdmin()"
         (removeEntry)="deleteEntry($event)"
+        (removeSelected)="deleteSelectedEntries($event)"
         (removePayment)="deletePayment($event)"
         (paymentConfirmed)="loadBill()" />
     }
@@ -130,20 +132,38 @@ import { IconComponent } from '../shared/icon.component';
                              [attr.aria-label]="'Select ' + p.name" />
                       <span class="pick-body">
                         <span class="pick-name">{{ p.name }}</span>
-                        <span class="pick-rate">₹{{ p.price | number: '1.0-2' }} / {{ p.unit }}</span>
+                        <span class="pick-rate">
+                          @if (packOf(p); as v) {
+                            ₹{{ v.price | number: '1.0-2' }} / {{ v.label }}
+                          } @else {
+                            ₹{{ p.price | number: '1.0-2' }} / {{ p.unit }}
+                          }
+                        </span>
                       </span>
                     </label>
 
                     <div class="pick-qty">
-                      @for (q of quickQty; track q) {
-                        <button type="button" class="qchip" [class.on]="isPicked(p) && qtyOf(p) === q"
-                                (click)="setQty(p, q)">{{ q }}</button>
+                      @if (packsOf(p).length > 0) {
+                        @for (v of packsOf(p); track v.label) {
+                          <button type="button" class="qchip pchip" [class.on]="packOf(p)?.label === v.label"
+                                  (click)="pickPack(p, v)">{{ v.label }}</button>
+                        }
+                        <input type="number" class="qbox" min="0" step="1"
+                               [ngModel]="qtyOf(p)" [ngModelOptions]="{ standalone: true }"
+                               (ngModelChange)="setQty(p, $event)"
+                               [attr.aria-label]="'Packs of ' + p.name" />
+                        <span class="qunit">packs</span>
+                      } @else {
+                        @for (q of quickQty; track q) {
+                          <button type="button" class="qchip" [class.on]="isPicked(p) && qtyOf(p) === q"
+                                  (click)="setQty(p, q)">{{ q }}</button>
+                        }
+                        <input type="number" class="qbox" min="0" step="0.5"
+                               [ngModel]="qtyOf(p)" [ngModelOptions]="{ standalone: true }"
+                               (ngModelChange)="setQty(p, $event)"
+                               [attr.aria-label]="'Quantity for ' + p.name" />
+                        <span class="qunit">{{ p.unit }}</span>
                       }
-                      <input type="number" class="qbox" min="0" step="0.5"
-                             [ngModel]="qtyOf(p)" [ngModelOptions]="{ standalone: true }"
-                             (ngModelChange)="setQty(p, $event)"
-                             [attr.aria-label]="'Quantity for ' + p.name" />
-                      <span class="qunit">{{ p.unit }}</span>
                     </div>
 
                     <div class="pick-line">
@@ -152,6 +172,33 @@ import { IconComponent } from '../shared/icon.component';
                   </div>
                 }
               </div>
+            </div>
+
+            <div class="field field-wide">
+              <label>Coupon code (optional)</label>
+              <div class="cp-row">
+                <input name="ecoupon" class="cp-input" [(ngModel)]="entryForm.couponCode"
+                       (ngModelChange)="onCouponTyped()" placeholder="e.g. ARYA10"
+                       autocomplete="off" spellcheck="false" maxlength="20" />
+                @if (entryForm.couponCode) {
+                  <button type="button" class="btn btn-ghost btn-sm" (click)="clearCoupon()">Clear</button>
+                }
+              </div>
+              @if (khataOffers.length > 0 && !entryForm.couponCode) {
+                <div class="cp-chips">
+                  <span class="cp-hint">Running today:</span>
+                  @for (o of khataOffers; track o.code) {
+                    <button type="button" class="cp-chip" (click)="pickCoupon(o.code)"
+                            [title]="o.title">{{ o.code }} · {{ o.percentOff }}%</button>
+                  }
+                </div>
+              }
+              @if (couponError) { <span class="cp-bad">{{ couponError }}</span> }
+              @else if (activeOffer()) {
+                <span class="cp-good">
+                  {{ activeOffer()?.percentOff }}% off — ₹{{ entryDiscount() | number: '1.0-2' }} comes off this entry.
+                </span>
+              }
             </div>
 
             <div class="field field-wide">
@@ -169,16 +216,30 @@ import { IconComponent } from '../shared/icon.component';
                 </button>
               </div>
               @if (entryForm.paid) {
-                <div class="paid-row">
-                  <span>Received via</span>
-                  <select name="epmode" [(ngModel)]="entryForm.paymentMode">
-                    <option>Cash</option>
-                    <option>UPI</option>
-                    <option>Other</option>
-                  </select>
+                <div class="mode-block">
+                  <span class="mode-label">Received as</span>
+                  <div class="seg mode-seg">
+                    <button type="button" [class.on]="entryForm.paymentMode === 'Cash'"
+                            (click)="entryForm.paymentMode = 'Cash'">
+                      Cash <span class="seg-sub">offline</span>
+                    </button>
+                    <button type="button" [class.on]="entryForm.paymentMode === 'UPI'"
+                            (click)="entryForm.paymentMode = 'UPI'">
+                      UPI <span class="seg-sub">online</span>
+                    </button>
+                    <button type="button" [class.on]="entryForm.paymentMode === 'Bank'"
+                            (click)="entryForm.paymentMode = 'Bank'">
+                      Bank <span class="seg-sub">online</span>
+                    </button>
+                    <button type="button" [class.on]="entryForm.paymentMode === 'Other'"
+                            (click)="entryForm.paymentMode = 'Other'">
+                      Other <span class="seg-sub">online</span>
+                    </button>
+                  </div>
                   <span class="hint">
-                    A payment will be recorded automatically for every entry created
-                    (₹{{ entryTotal() | number: '1.0-2' }} in total).
+                    A payment of ₹{{ entryFinal() | number: '1.0-2' }}
+                    is recorded automatically, and counts towards
+                    {{ entryForm.paymentMode === 'Cash' ? 'cash' : 'online' }} collection on the dashboard.
                   </span>
                 </div>
               } @else {
@@ -189,7 +250,13 @@ import { IconComponent } from '../shared/icon.component';
           <div class="modal-actions">
             <div class="m-total m-aside">
               {{ pickedCount() }} product{{ pickedCount() === 1 ? '' : 's' }} × {{ dayCount() }}
-              {{ dayCount() === 1 ? 'day' : 'days' }} · Total: ₹{{ entryTotal() | number: '1.0-2' }}
+              {{ dayCount() === 1 ? 'day' : 'days' }} ·
+              @if (activeOffer()) {
+                <s class="m-was">₹{{ entryTotal() | number: '1.0-2' }}</s>
+                Total: ₹{{ entryPayable() | number: '1.0-2' }}
+              } @else {
+                Total: ₹{{ entryTotal() | number: '1.0-2' }}
+              }
             </div>
             <button class="btn btn-ghost" (click)="closeEntry()">Cancel</button>
             <button class="btn btn-primary" (click)="saveEntry()" [disabled]="saving">
@@ -226,10 +293,10 @@ import { IconComponent } from '../shared/icon.component';
             <div class="field">
               <label>Mode</label>
               <select name="pmode" [(ngModel)]="paymentForm.mode">
-                <option>Cash</option>
-                <option>UPI</option>
-                <option>Bank</option>
-                <option>Other</option>
+                <option value="Cash">Cash (offline)</option>
+                <option value="UPI">UPI (online)</option>
+                <option value="Bank">Bank transfer (online)</option>
+                <option value="Other">Other (online)</option>
               </select>
             </div>
             <div class="field">
@@ -379,6 +446,23 @@ import { IconComponent } from '../shared/icon.component';
     .pref-main input { width: 16px; height: 16px; accent-color: #C9A227; flex-shrink: 0; }
     .hint-inline { font-weight: 400; font-size: 0.74rem; color: var(--muted); margin-left: 6px; }
 
+    /* ---------- coupon on a khata entry ---------- */
+    .pchip { letter-spacing: 0.02em; }
+    .cp-row { display: flex; gap: 8px; align-items: center; }
+    .cp-input { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
+    .cp-input::placeholder { text-transform: none; letter-spacing: normal; font-weight: 400; }
+    .cp-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+    .cp-hint { font-size: 0.76rem; color: var(--muted); }
+    .cp-chip {
+      padding: 3px 11px; border-radius: 999px; cursor: pointer;
+      background: #100E08; border: 1px dashed var(--line); color: var(--gold-2);
+      font-family: var(--font-body); font-size: 0.76rem; font-weight: 700; letter-spacing: 0.04em;
+    }
+    .cp-chip:hover { background: var(--leaf-soft); }
+    .cp-bad { font-size: 0.8rem; color: var(--danger); margin-top: 6px; }
+    .cp-good { font-size: 0.8rem; color: var(--ok); margin-top: 6px; }
+    .m-was { color: var(--muted); margin-right: 6px; }
+
     /* Entry sheet: every product on screen at once, with a checkbox and the
        quantities that actually get used day to day. */
     .sheet { border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
@@ -429,6 +513,16 @@ import { IconComponent } from '../shared/icon.component';
     .seg .seg-sub { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.7; }
     .seg button.on { border-color: var(--gold); color: var(--gold-2); background: rgba(228, 199, 102, 0.09); }
     .seg button.paid.on { border-color: #6FAE58; color: #9ACE84; background: rgba(122, 186, 96, 0.1); }
+    .mode-block { margin-top: 12px; }
+    .mode-label {
+      display: block; margin-bottom: 7px;
+      font-size: 0.74rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .mode-seg button { padding: 8px 10px; font-size: 0.86rem; }
+    .mode-block .hint { display: block; margin-top: 8px; }
+    @media (max-width: 520px) { .mode-seg { flex-wrap: wrap; } .mode-seg button { flex: 1 1 44%; } }
+
     .paid-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
     .paid-row select { width: auto; height: 40px; padding: 8px 34px 8px 12px; }
     .paid-row > span:first-child { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
@@ -461,7 +555,14 @@ export class CustomerDetailComponent implements OnInit {
   editOpen = false;
   unit = '';
 
-  entryForm = { from: isoDate(), to: isoDate(), note: '', paid: false, paymentMode: 'Cash' };
+  entryForm = { from: isoDate(), to: isoDate(), note: '', paid: false, paymentMode: 'Cash', couponCode: '' };
+
+  /** Chosen pack label per product; unset means the smallest one. */
+  packPick: Record<string, string> = {};
+
+  /** Khata coupons running today — offered as chips so staff needn't remember codes. */
+  khataOffers: Offer[] = [];
+  couponError = '';
 
   /** productId -> quantity for the current basket (only picked products appear). */
   picked: Record<string, number> = {};
@@ -484,6 +585,11 @@ export class CustomerDetailComponent implements OnInit {
     this.customerId = this.route.snapshot.paramMap.get('id') || '';
     this.autoEntry = this.route.snapshot.queryParamMap.get('entry') === '1';
     this.api.getAdminProducts().subscribe({ next: p => (this.products = p.filter(x => x.available)) });
+    // Coupons usable on a khata entry today — shown as chips in the entry sheet.
+    this.api.getLiveOffersFor('KHATA').subscribe({
+      next: list => (this.khataOffers = list || []),
+      error: () => (this.khataOffers = [])
+    });
     this.loadCustomer();
     this.loadBill();
   }
@@ -550,11 +656,13 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   openEntry() {
-    this.entryForm = { from: isoDate(), to: isoDate(), note: '', paid: false, paymentMode: 'Cash' };
+    this.entryForm = { from: isoDate(), to: isoDate(), note: '', paid: false, paymentMode: 'Cash', couponCode: '' };
+    this.couponError = '';
     this.entryRequestId = newRequestId();
     // The customer's usual products (chosen when they were added) come
     // pre-ticked at quantity 1, so a routine day is two clicks: open, save.
     this.picked = {};
+    this.packPick = {};
     for (const id of this.customer?.preferredProductIds || []) {
       this.picked[id] = this.customer?.preferredQuantities?.[id] || 1;
     }
@@ -599,9 +707,25 @@ export class CustomerDetailComponent implements OnInit {
     return Object.keys(this.picked).length;
   }
 
-  /** One product's cost for a single day. */
+  packsOf(p: Product): ProductVariant[] { return sellablePacks(p); }
+
+  packOf(p: Product): ProductVariant | null {
+    const packs = this.packsOf(p);
+    if (packs.length === 0) return null;
+    return packs.find(v => v.label === this.packPick[p.id!]) || packs[0];
+  }
+
+  /** Choosing a pack also ticks the product, the same way a quantity chip does. */
+  pickPack(p: Product, v: ProductVariant) {
+    this.packPick[p.id!] = v.label;
+    if (!this.isPicked(p)) this.picked[p.id!] = 1;
+  }
+
+  /** One product's cost for a single day — the pack price wins when there is one. */
   lineTotal(p: Product): number {
-    return Math.round(this.qtyOf(p) * p.price * 100) / 100;
+    const pack = this.packOf(p);
+    const unit = pack ? pack.price : p.price;
+    return Math.round(this.qtyOf(p) * unit * 100) / 100;
   }
 
   /** Inclusive number of days in the selected range. */
@@ -612,12 +736,59 @@ export class CustomerDetailComponent implements OnInit {
     return Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
   }
 
-  /** Grand total: every picked product, once per day in the range. */
+  /** Grand total before any coupon: every picked product, once per day in the range. */
   entryTotal(): number {
     const perDay = this.products
       .filter(p => this.isPicked(p))
       .reduce((sum, p) => sum + this.lineTotal(p), 0);
     return Math.round(perDay * this.dayCount() * 100) / 100;
+  }
+
+  /* ---------------- coupon on the entry sheet ---------------- */
+
+  /**
+   * The offer the typed code matches, if any. Matching happens against the
+   * live list the panel loaded, so an expired or website-only code simply
+   * never matches here — and the backend checks it again on save.
+   */
+  activeOffer(): Offer | null {
+    const typed = (this.entryForm.couponCode || '').trim().toUpperCase();
+    if (!typed) return null;
+    return this.khataOffers.find(o => o.code === typed) || null;
+  }
+
+  entryDiscount(): number {
+    const offer = this.activeOffer();
+    if (!offer) return 0;
+    return Math.round(this.entryTotal() * offer.percentOff) / 100;
+  }
+
+  entryPayable(): number {
+    return Math.round((this.entryTotal() - this.entryDiscount()) * 100) / 100;
+  }
+
+  /** What the customer actually owes — the coupon, if any, already taken off. */
+  entryFinal(): number {
+    return this.activeOffer() ? this.entryPayable() : this.entryTotal();
+  }
+
+  onCouponTyped() {
+    const typed = (this.entryForm.couponCode || '').trim().toUpperCase();
+    this.entryForm.couponCode = typed;
+    // Silent until they have typed enough for a verdict to be useful.
+    this.couponError = (typed.length >= 3 && !this.activeOffer())
+      ? 'No khata coupon is running with this code today.'
+      : '';
+  }
+
+  pickCoupon(code: string) {
+    this.entryForm.couponCode = code;
+    this.couponError = '';
+  }
+
+  clearCoupon() {
+    this.entryForm.couponCode = '';
+    this.couponError = '';
   }
 
   saveEntry() {
@@ -627,12 +798,16 @@ export class CustomerDetailComponent implements OnInit {
     this.modalError = '';
     const items = this.products
       .filter(p => this.isPicked(p))
-      .map(p => ({ productId: p.id!, quantity: this.qtyOf(p) }));
+      .map(p => ({ productId: p.id!, quantity: this.qtyOf(p), packLabel: this.packOf(p)?.label }));
 
     if (items.length === 0) { this.modalError = 'Select at least one product.'; return; }
     if (!this.entryForm.from || !this.entryForm.to) { this.modalError = 'Choose both a From and a To date.'; return; }
     if (this.dayCount() <= 0) { this.modalError = 'The To date cannot be before the From date.'; return; }
     if (this.dayCount() > 92) { this.modalError = 'Please choose a range of 92 days or less.'; return; }
+    if (this.entryForm.couponCode && !this.activeOffer()) {
+      this.modalError = 'That coupon code is not running on the khata today. Clear it, or pick one of the codes shown.';
+      return;
+    }
 
     this.saving = true;
     this.api.addEntriesBulk({
@@ -643,13 +818,15 @@ export class CustomerDetailComponent implements OnInit {
       paid: this.entryForm.paid,
       paymentMode: this.entryForm.paid ? this.entryForm.paymentMode : undefined,
       items,
+      couponCode: this.entryForm.couponCode || undefined,
       requestId: this.entryRequestId
     }).subscribe({
       next: res => {
         this.saving = false;
         this.entryOpen = false;
         if (!res.duplicate) {
-          const label = `${res.created} ${res.created === 1 ? 'entry' : 'entries'} across ${res.days} ${res.days === 1 ? 'day' : 'days'} — ₹${res.totalAmount}`;
+          const saved = res.discount && res.discount > 0 ? ` (${res.couponCode} saved ₹${res.discount})` : '';
+          const label = `${res.created} ${res.created === 1 ? 'entry' : 'entries'} across ${res.days} ${res.days === 1 ? 'day' : 'days'} — ₹${res.totalAmount}${saved}`;
           if (this.entryForm.paid) {
             this.toast.success(`Saved & marked paid: ${label}.`);
           } else {
@@ -668,6 +845,33 @@ export class CustomerDetailComponent implements OnInit {
         this.saving = false;
         this.modalError = err?.error?.error || 'Could not save the entries.';
       }
+    });
+  }
+
+  /**
+   * Deletes a ticked selection in one request.
+   *
+   * The confirm names the count and the amount because this is the one action
+   * on the page that can wipe a month of khata in a single tap, and an entry
+   * cannot be undeleted.
+   */
+  async deleteSelectedEntries(entries: DailyEntry[]) {
+    if (entries.length === 0) return;
+    const total = Math.round(entries.reduce((s, e) => s + e.total, 0) * 100) / 100;
+    const ok = await this.confirm.ask({
+      title: `Delete ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}?`,
+      message: `This removes ₹${total.toFixed(2)} from ${this.customer?.name || 'this customer'}'s khata. `
+        + 'Any payment recorded automatically with a paid entry is removed too. This cannot be undone.',
+      confirmLabel: `Delete ${entries.length}`
+    });
+    if (!ok) return;
+
+    this.api.deleteEntriesBulk(entries.map(e => e.id!)).subscribe({
+      next: res => {
+        this.toast.success(`${res.deleted} ${res.deleted === 1 ? 'entry' : 'entries'} deleted — ₹${res.amount} removed.`);
+        this.loadBill();
+      },
+      error: err => this.toast.error(err?.error?.error || 'Could not delete the selected entries.')
     });
   }
 
