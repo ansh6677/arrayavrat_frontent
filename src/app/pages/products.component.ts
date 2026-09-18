@@ -10,6 +10,7 @@ import { waLink } from '../core/farm';
 import { Product, ProductVariant } from '../core/models';
 import { IconComponent } from '../shared/icon.component';
 import { ProductImage } from '../shared/product-image';
+import { productGallery } from '../core/farm';
 
 @Component({
   selector: 'app-products',
@@ -66,8 +67,24 @@ import { ProductImage } from '../shared/product-image';
             @for (p of visible(); track p.id) {
               <article class="pcard" [class.pcard-off]="!buyable(p)">
                 <div class="media">
-                  <img [src]="img.src(p)" [alt]="p.name" loading="lazy"
-                       width="1200" height="900" (error)="img.failed(p)" />
+                  @if (shots(p).length > 1) {
+                    <!-- Scroll-snap does the swiping natively: no library, and a
+                         trackpad or arrow key works the same as a thumb. -->
+                    <div class="swipe" (scroll)="onSwipe(p, $event)" [attr.aria-label]="p.name + ' photos'">
+                      @for (url of shots(p); track url; let i = $index) {
+                        <img [src]="url" [alt]="p.name + ' photo ' + (i + 1)"
+                             loading="lazy" width="1200" height="900" (error)="shotFailed(url)" />
+                      }
+                    </div>
+                    <div class="dots" aria-hidden="true">
+                      @for (url of shots(p); track url; let i = $index) {
+                        <i [class.on]="shotAt(p) === i"></i>
+                      }
+                    </div>
+                  } @else {
+                    <img [src]="img.src(p)" [alt]="p.name" loading="lazy"
+                         width="1200" height="900" (error)="img.failed(p)" />
+                  }
                   <span class="pcard-cat">{{ p.category }}</span>
                   @if (p.comingSoon) {
                     <span class="pcard-flag flag-soon">Coming soon</span>
@@ -237,6 +254,27 @@ import { ProductImage } from '../shared/product-image';
     .cart-fab { position: sticky; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; margin-top: 28px; z-index: 40; }
     .cart-fab .btn { box-shadow: var(--shadow); }
 
+    /* One scroller, one frame per photo. Snapping is what makes a half-swipe
+       settle on a photo instead of leaving two of them half-showing. */
+    .swipe {
+      display: flex; width: 100%; height: 100%;
+      overflow-x: auto; overflow-y: hidden;
+      scroll-snap-type: x mandatory; scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .swipe::-webkit-scrollbar { display: none; }
+    .swipe img { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; scroll-snap-align: center; }
+    .dots {
+      position: absolute; left: 0; right: 0; bottom: 9px; z-index: 2;
+      display: flex; justify-content: center; gap: 5px; pointer-events: none;
+    }
+    .dots i {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255, 255, 255, 0.45); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+      transition: background 0.2s ease, width 0.2s ease;
+    }
+    .dots i.on { background: var(--gold-2); width: 16px; border-radius: 999px; }
+
     @media (max-width: 420px) {
       .p-grid { grid-template-columns: 1fr; }
     }
@@ -247,6 +285,44 @@ export class ProductsComponent implements OnInit {
   cart = inject(CartService);
   private toast = inject(ToastService);
   img = new ProductImage();
+
+  /** Which photo each card is currently showing, by product id. */
+  private shotIndex = new Map<string, number>();
+
+  /** Photos that failed to load, dropped from every card that lists them. */
+  private brokenShots = new Set<string>();
+
+  /**
+   * Every photo for a product, resolved and ready for an <img>.
+   *
+   * A reference can outlive its file — a photo deleted from storage while a
+   * product still points at it — so anything that failed to load is dropped
+   * rather than left as a blank frame the customer can swipe into. If that
+   * empties the gallery the card falls back to the category photo.
+   */
+  shots(p: Product): string[] {
+    const list = productGallery(p).filter(u => !this.brokenShots.has(u));
+    return list.length > 0 ? list : [this.img.src(p)];
+  }
+
+  shotFailed(url: string) {
+    this.brokenShots.add(url);
+  }
+
+  shotAt(p: Product): number {
+    return this.shotIndex.get(p.id || '') || 0;
+  }
+
+  /**
+   * Reads the dot position back off the scroller rather than tracking touches:
+   * the browser already did the physics, and this stays right whether the
+   * photo was swiped, trackpad-scrolled or reached with the keyboard.
+   */
+  onSwipe(p: Product, ev: Event) {
+    const el = ev.target as HTMLElement;
+    if (!el || !el.clientWidth) return;
+    this.shotIndex.set(p.id || '', Math.round(el.scrollLeft / el.clientWidth));
+  }
 
   products: Product[] = [];
   categories: string[] = [];

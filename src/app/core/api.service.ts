@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 
 import { API_URL } from './farm';
-import { Bill, Breakdown, BreakdownType, CouponPreview, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Offer, Payment, Product, Stats, UserInfo } from './models';
+import { Bill, Breakdown, BreakdownType, CouponPreview, DeliveryInfo, ShopSettings, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Offer, Payment, Product, Stats, UserInfo } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -228,6 +228,40 @@ export class ApiService {
     let params = new HttpParams().set('type', type);
     if (month) params = params.set('month', month);
     return this.http.get<Breakdown>(`${API_URL}/admin/stats/breakdown`, { params });
+  }
+
+  // ---------------- Delivery settings ----------------
+
+  /** Public: the cart needs the delivery rule before anyone signs in. */
+  getDeliveryInfo() {
+    return this.http.get<DeliveryInfo>(`${API_URL}/public/settings`);
+  }
+
+  getShopSettings() {
+    return this.http.get<ShopSettings>(`${API_URL}/admin/settings`);
+  }
+
+  saveDelivery(body: DeliveryInfo) {
+    return this.http.put<ShopSettings>(`${API_URL}/admin/settings/delivery`, body);
+  }
+
+  // ---------------- Admin: product photos ----------------
+
+  /**
+   * Uploads one photo and returns the reference to store on the product.
+   *
+   * No Content-Type is set by hand: the browser has to add the multipart
+   * boundary itself, and naming the type here would overwrite it and make the
+   * upload arrive empty.
+   */
+  uploadImage(file: File) {
+    const body = new FormData();
+    body.append('file', file);
+    return this.http.post<{ id: string; url: string }>(`${API_URL}/admin/images`, body);
+  }
+
+  deleteImage(id: string) {
+    return this.http.delete(`${API_URL}/admin/images/${id}`);
   }
 
   // ---------------- Admin: offers ----------------
