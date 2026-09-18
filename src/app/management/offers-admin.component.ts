@@ -28,7 +28,7 @@ import { IconComponent } from '../shared/icon.component';
     <h2>Offers</h2>
     <p class="mgmt-sub">
       Create a coupon code, and customers who type it get that percentage off their whole order.
-      Live codes are announced in the strip at the top of the website.
+      Live codes show up in the cart's offer list, where customers can tap to apply them.
     </p>
 
     <div class="panel">
@@ -85,7 +85,7 @@ import { IconComponent } from '../shared/icon.component';
                     <b>{{ o.title }}</b>
                     @if (o.description) { <div class="muted sm">{{ o.description }}</div> }
                     @if (!o.showOnSite) {
-                      <span class="auto-tag" title="Not announced on the website — share this code yourself">private</span>
+                      <span class="auto-tag" title="Not listed in the cart — share this code yourself">private</span>
                     }
                   </td>
                   <td class="num pct">{{ o.percentOff }}%</td>
@@ -168,7 +168,7 @@ import { IconComponent } from '../shared/icon.component';
             <div class="field field-wide">
               <label>Headline</label>
               <input name="otitle" [(ngModel)]="form.title" [placeholder]="defaultTitle()" />
-              <span class="hint">Shown in the strip at the top of the website. Leave blank to use "{{ defaultTitle() }}".</span>
+              <span class="hint">Shown on the coupon card in the cart. Leave blank to use "{{ defaultTitle() }}".</span>
             </div>
             <div class="field field-wide">
               <label>Small print (optional)</label>
@@ -210,7 +210,7 @@ import { IconComponent } from '../shared/icon.component';
               <label>Visibility</label>
               <label class="check">
                 <input type="checkbox" name="oshow" [(ngModel)]="form.showOnSite" />
-                <span>Announce this code in the strip across the top of the website</span>
+                <span>List this code in the cart so customers can tap to apply it</span>
               </label>
               <label class="check">
                 <input type="checkbox" name="oactive" [(ngModel)]="form.active" />

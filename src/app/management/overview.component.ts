@@ -7,7 +7,7 @@ import { ApiService } from '../core/api.service';
 import { saveBlob } from '../core/download';
 import { AuthService } from '../core/auth.service';
 import { productPhoto } from '../core/farm';
-import { Breakdown, DailyEntry, DayDetail, DayPoint, Payment, Stats } from '../core/models';
+import { Breakdown, BreakdownType, DailyEntry, DayDetail, DayPoint, Payment, Stats } from '../core/models';
 import { IconComponent } from '../shared/icon.component';
 
 @Component({
@@ -72,28 +72,30 @@ import { IconComponent } from '../shared/icon.component';
     } @else if (stats) {
       <!-- ============ top stat cards ============ -->
       <div class="stat-grid mb">
-        <div class="stat stat-gold">
-          <div class="stat-label">Today's sales</div>
+        <button type="button" class="stat stat-gold stat-click" (click)="openBreakdown('TODAY_SALES')">
+          <div class="stat-label">Today's sales <span class="stat-go">see who</span></div>
           <div class="stat-value">₹{{ stats.todaySales | number: '1.0-0' }}</div>
           <div class="muted stat-note">{{ stats.todayEntryCount }} {{ stats.todayEntryCount === 1 ? 'entry' : 'entries' }} today</div>
-        </div>
-        <div class="stat">
-          <div class="stat-label">{{ stats.monthLabel }} sales</div>
+        </button>
+        <button type="button" class="stat stat-click" (click)="openBreakdown('MONTH_SALES')">
+          <div class="stat-label">{{ stats.monthLabel }} sales <span class="stat-go">see who</span></div>
           <div class="stat-value">₹{{ stats.monthSales | number: '1.0-0' }}</div>
-        </div>
-        <div class="stat">
-          <div class="stat-label">{{ stats.monthLabel }} walk-in sales</div>
+        </button>
+        <button type="button" class="stat stat-click" (click)="openBreakdown('WALKIN')">
+          <div class="stat-label">{{ stats.monthLabel }} walk-in sales <span class="stat-go">see what</span></div>
           <div class="stat-value">₹{{ stats.monthExtraSales | number: '1.0-2' }}</div>
           <div class="stat-hint">Extra Sells counter · today ₹{{ stats.todayExtraSales | number: '1.0-2' }}</div>
-        </div>
-        <div class="stat">
-          <div class="stat-label">{{ stats.monthLabel }} expenses</div>
+        </button>
+        <button type="button" class="stat stat-click" (click)="openBreakdown('EXPENSES')">
+          <div class="stat-label">{{ stats.monthLabel }} expenses <span class="stat-go">see what</span></div>
           <div class="stat-value">₹{{ stats.monthExpenses | number: '1.0-0' }}</div>
-        </div>
-        <div class="stat" [class.stat-green]="stats.monthProfit >= 0" [class.stat-red]="stats.monthProfit < 0">
-          <div class="stat-label">{{ stats.monthLabel }} profit (sales − expenses)</div>
+        </button>
+        <button type="button" class="stat stat-click"
+                [class.stat-green]="stats.monthProfit >= 0" [class.stat-red]="stats.monthProfit < 0"
+                (click)="openBreakdown('PROFIT')">
+          <div class="stat-label">{{ stats.monthLabel }} profit (sales − expenses) <span class="stat-go">see how</span></div>
           <div class="stat-value">₹{{ stats.monthProfit | number: '1.0-0' }}</div>
-        </div>
+        </button>
         <button type="button" class="stat stat-red stat-click" (click)="openBreakdown('OUTSTANDING')">
           <div class="stat-label">Total outstanding <span class="stat-go">see who</span></div>
           <div class="stat-value">₹{{ stats.totalOutstanding | number: '1.0-0' }}</div>
@@ -108,11 +110,11 @@ import { IconComponent } from '../shared/icon.component';
           <div class="stat-value">₹{{ stats.monthOnlineIn | number: '1.0-0' }}</div>
           <div class="stat-sub">Today ₹{{ stats.todayOnlineIn | number: '1.0-0' }} · UPI, bank and other</div>
         </button>
-        <div class="stat">
-          <div class="stat-label">Customers</div>
+        <button type="button" class="stat stat-click" (click)="openBreakdown('CUSTOMERS')">
+          <div class="stat-label">Customers <span class="stat-go">see who</span></div>
           <div class="stat-value">{{ stats.customerCount }}</div>
           <div class="muted stat-note">{{ stats.productCount }} {{ stats.productCount === 1 ? 'product' : 'products' }} live</div>
-        </div>
+        </button>
       </div>
 
       <!-- ============ product-wise sales cards ============ -->
@@ -256,12 +258,18 @@ import { IconComponent } from '../shared/icon.component';
             <div class="skeleton" style="height: 220px;"></div>
           } @else if (bdError) {
             <div class="alert alert-error">{{ bdError }}</div>
-          } @else if (bd; as b) {
+          } @else if (bd) {
+            @if (bd; as b) {
             @if (b.rows.length === 0) {
               <p class="muted bd-empty">
                 @switch (b.type) {
                   @case ('OUTSTANDING') { Nobody owes anything — every khata is clear. }
                   @case ('CASH') { No cash was collected in this month. }
+                  @case ('TODAY_SALES') { Nothing has been sold today yet. }
+                  @case ('MONTH_SALES') { No sales were recorded in this month. }
+                  @case ('WALKIN') { The counter took no walk-in sales this month. }
+                  @case ('EXPENSES') { No expenses were recorded in this month. }
+                  @case ('CUSTOMERS') { No customers on the khata yet. }
                   @default { Nothing was collected online in this month. }
                 }
               </p>
@@ -284,12 +292,13 @@ import { IconComponent } from '../shared/icon.component';
                           }
                           <div class="muted bd-detail">{{ r.detail }}</div>
                         </td>
-                        <td class="num bd-amt">₹{{ r.amount | number: '1.0-2' }}</td>
+                        <td class="num bd-amt" [class.bd-neg]="r.amount < 0">₹{{ r.amount | number: '1.0-2' }}</td>
                       </tr>
                     }
                   </tbody>
                 </table>
               </div>
+            }
             }
           }
 
@@ -475,6 +484,8 @@ import { IconComponent } from '../shared/icon.component';
 
     .day-modal { width: min(720px, 100%); }
 
+    .bd-neg { color: var(--danger); }
+
     /* Cards that drill through look tappable but must still read as cards. */
     .stat-click {
       width: 100%; text-align: left; cursor: pointer; font-family: inherit;
@@ -624,12 +635,15 @@ export class OverviewComponent implements OnInit {
    * Cash and online follow the month dropdown so the list matches the card
    * above it. Outstanding is all-time by nature and ignores the month.
    */
-  openBreakdown(type: 'CASH' | 'ONLINE' | 'OUTSTANDING') {
+  openBreakdown(type: BreakdownType) {
     this.bdOpen = true;
     this.bdLoading = true;
     this.bdError = '';
     this.bd = null;
-    this.api.getBreakdown(type, type === 'OUTSTANDING' ? undefined : this.month).subscribe({
+    // Outstanding and the customer list are all-time by nature; everything
+    // else follows the month picker at the top of the page.
+    const allTime = type === 'OUTSTANDING' || type === 'CUSTOMERS';
+    this.api.getBreakdown(type, allTime ? undefined : this.month).subscribe({
       next: res => {
         this.bd = res;
         this.bdLoading = false;

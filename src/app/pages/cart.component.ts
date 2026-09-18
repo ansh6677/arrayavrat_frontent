@@ -6,16 +6,19 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
 import { CartService, CartItem, linePrice } from '../core/cart.service';
 import { CouponService } from '../core/coupon.service';
+import { DeliveryService } from '../core/delivery.service';
 import {
   DELIVERY_SLOTS, DeliverySlot, defaultSlotChoice, isoDate, niceDay, slotAvailable, waLink
 } from '../core/farm';
+import { burstFrom } from '../core/confetti';
+import { CouponListComponent } from '../shared/coupon-list.component';
 import { IconComponent } from '../shared/icon.component';
 import { ProductImage } from '../shared/product-image';
 
 @Component({
   selector: 'app-cart',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, IconComponent],
+  imports: [CommonModule, FormsModule, RouterLink, CouponListComponent, IconComponent],
   template: `
     <div class="container page-head">
       <span class="eyebrow">Your cart</span>
@@ -96,17 +99,50 @@ import { ProductImage } from '../shared/product-image';
                 <button type="button" class="cp-remove" (click)="removeCoupon()">Remove coupon</button>
               } @else {
                 <div class="cp-row">
-                  <input name="ccode" [(ngModel)]="couponCode" (keyup.enter)="applyCoupon()"
+                  <input name="ccode" [(ngModel)]="couponCode" (keyup.enter)="applyCoupon($event)"
                          placeholder="Have a coupon code?" aria-label="Coupon code"
                          autocapitalize="characters" autocomplete="off" spellcheck="false" />
-                  <button type="button" class="btn btn-outline btn-sm" (click)="applyCoupon()" [disabled]="checking">
+                  <button type="button" class="btn btn-outline btn-sm" (click)="applyCoupon($event)" [disabled]="checking">
                     @if (checking) { <span class="spinner"></span> } Apply
                   </button>
                 </div>
                 @if (couponError) { <p class="cp-msg">{{ couponError }}</p> }
               }
 
-              <div class="srow total"><span>Total</span><b>₹{{ coupons.payable() | number: '1.0-2' }}</b></div>
+              <!-- Every running code, with the gap to the ones not yet unlocked. -->
+              <app-coupon-list />
+
+              @if (coupons.nextUnlock(); as next) {
+                <p class="cp-nudge">
+                  <app-icon name="percent" [size]="13" />
+                  Add ₹{{ coupons.gapFor(next) | number: '1.0-2' }} more and {{ next.code }} saves you
+                  ₹{{ coupons.savingAtMinimum(next) | number: '1.0-2' }}.
+                </p>
+              }
+
+              @if (delivery.charges()) {
+                <div class="srow">
+                  <span class="muted"><app-icon name="truck" [size]="14" /> Delivery</span>
+                  @if (delivery.isFree()) {
+                    <b class="free">FREE <s>₹{{ delivery.info().deliveryCharge | number: '1.0-2' }}</s></b>
+                  } @else {
+                    <b>₹{{ delivery.fee() | number: '1.0-2' }}</b>
+                  }
+                </div>
+                @if (delivery.gap() > 0) {
+                  <div class="dv-bar"><i [style.width.%]="delivery.progress() * 100"></i></div>
+                  <p class="dv-gap">
+                    Add ₹{{ delivery.gap() | number: '1.0-2' }} more and delivery is free.
+                  </p>
+                } @else if (delivery.isFree() && cart.total() > 0) {
+                  <p class="dv-won">Free delivery unlocked.</p>
+                }
+                @if (delivery.info().deliveryNote) {
+                  <p class="dv-note">{{ delivery.info().deliveryNote }}</p>
+                }
+              }
+
+              <div class="srow total"><span>Total</span><b>₹{{ payable() | number: '1.0-2' }}</b></div>
 
               <!-- ===== delivery schedule (two rounds a day) ===== -->
               <div class="field mt">
@@ -214,6 +250,19 @@ import { ProductImage } from '../shared/product-image';
     .cp-row input::placeholder { text-transform: none; letter-spacing: normal; font-weight: 400; }
     .cp-row .btn { flex: none; }
     .cp-msg { font-size: 0.8rem; color: var(--danger); margin: 2px 0 6px; }
+    .free { color: var(--ok); }
+    .free s { color: var(--muted); font-weight: 400; margin-left: 6px; font-size: 0.8rem; }
+    .dv-bar { height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); overflow: hidden; margin: 2px 0 6px; }
+    .dv-bar i { display: block; height: 100%; border-radius: 999px; background: var(--gold-grad); transition: width 0.3s ease; }
+    .dv-gap { font-size: 0.78rem; color: var(--gold-2); margin: 0 0 8px; }
+    .dv-won { font-size: 0.78rem; color: var(--ok); margin: 0 0 8px; }
+    .dv-note { font-size: 0.75rem; color: var(--muted); margin: 0 0 8px; line-height: 1.5; }
+    .cp-nudge {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 0.78rem; line-height: 1.5; color: var(--gold-2);
+      background: var(--ghee-soft); border: 1px dashed var(--line);
+      border-radius: 10px; padding: 8px 11px; margin: 0 0 10px;
+    }
     .cp-short { font-size: 0.78rem; color: var(--gold-2); margin: 4px 0 2px; line-height: 1.5; }
     .cp-waiting span, .cp-waiting b { opacity: 0.55; }
     .cp-on span { display: inline-flex; align-items: center; gap: 6px; color: var(--gold-2); font-weight: 700; }
@@ -255,6 +304,7 @@ import { ProductImage } from '../shared/product-image';
 export class CartComponent implements OnInit {
   cart = inject(CartService);
   coupons = inject(CouponService);
+  delivery = inject(DeliveryService);
   private api = inject(ApiService);
   img = new ProductImage();
 
@@ -267,13 +317,23 @@ export class CartComponent implements OnInit {
     // Needed so a code applied on a previous visit can be checked against the
     // campaigns that are actually still running.
     this.coupons.loadOffers();
+    this.delivery.load();
   }
 
   /**
    * Verified on the server before it is stored, so the figure that ends up in
    * the WhatsApp message is always one the farm will honour.
    */
-  applyCoupon() {
+  /** What the customer actually pays: items, less the coupon, plus delivery. */
+  payable(): number {
+    return Math.round((this.coupons.payable() + this.delivery.fee()) * 100) / 100;
+  }
+
+  applyCoupon(ev?: Event) {
+    // Captured now, not in the callback: the browser clears currentTarget once
+    // the event finishes dispatching, so by the time the check comes back it
+    // would be null and the burst would start from the middle of the screen.
+    const from = ev?.currentTarget as Element | undefined;
     const code = this.couponCode.trim().toUpperCase();
     this.couponError = '';
     if (!code) { this.couponError = 'Enter a coupon code first.'; return; }
@@ -289,6 +349,7 @@ export class CartComponent implements OnInit {
           minOrderAmount: res.minOrderAmount || 0
         });
         this.couponCode = '';
+        burstFrom(from);
       },
       error: () => {
         this.checking = false;
@@ -389,14 +450,20 @@ export class CartComponent implements OnInit {
     });
     lines.push('');
     const coupon = this.coupons.applied();
-    if (coupon) {
-      lines.push(`Subtotal: ₹${this.cart.total()}`);
+    lines.push(`Subtotal: ₹${this.cart.total()}`);
+    // Only when it actually took money off: a coupon sitting below its minimum
+    // would otherwise be announced as "-₹0" on an order it did nothing for.
+    if (coupon && this.coupons.discount() > 0) {
       lines.push(`Coupon ${coupon.code} (${coupon.percentOff}% off): -₹${this.coupons.discount()}`);
-      lines.push(`Total: ₹${this.coupons.payable()}`);
-    } else {
-      lines.push(`Total: ₹${this.cart.total()}`);
     }
-    lines.push(`Delivery: ${slot.label} (${slot.window}) — ${niceDay(this.slotDate)}`);
+    // Stated either way: "delivery free" in writing is worth more to the
+    // customer than a line they have to notice is missing. Labelled "charge"
+    // because the slot line below also starts with the word Delivery.
+    if (this.delivery.charges()) {
+      lines.push(`Delivery charge: ${this.delivery.fee() > 0 ? '₹' + this.delivery.fee() : 'FREE'}`);
+    }
+    lines.push(`Total: ₹${this.payable()}`);
+    lines.push(`Delivery slot: ${slot.label} (${slot.window}) — ${niceDay(this.slotDate)}`);
     lines.push(`Name: ${this.name.trim()}`);
     lines.push(`Mobile: ${digits}`);
     lines.push(`Address: ${this.address.trim()}`);

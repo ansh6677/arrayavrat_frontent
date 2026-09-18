@@ -295,12 +295,15 @@ const CATEGORY_PHOTOS: ReadonlyArray<readonly [RegExp, string]> = [
   [/honey|shahad|madhu/i, 'assets/photos/prod-honey.jpg'],
   [/egg|anda/i, 'assets/photos/prod-eggs.jpg'],
   [/vegetable|sabzi|sabji|greens|produce/i, 'assets/photos/prod-vegetables.jpg'],
+  [/achaar|achar|pickle/i, 'assets/photos/prod-spices.jpg'],
   [/sweet|mithai|barfi|burfi|peda|laddu|ladoo|rasgulla|kalakand/i, 'assets/photos/prod-sweets.jpg'],
   [/khoya|khoa|mawa/i, 'assets/photos/prod-khoya.jpg'],
   [/lassi/i, 'assets/photos/prod-lassi.jpg'],
   [/butter\s*milk|chaach|chhach|chaas/i, 'assets/photos/prod-buttermilk-bottle.jpg'],
   [/ghee/i, 'assets/photos/prod-ghee.jpg'],
-  [/makhan|white\s*butter|butter/i, 'assets/photos/prod-butter.jpg'],
+  // "makhan" must not swallow "makhana" — fox nuts are not white butter, and
+  // the shop was showing a slab of butter on the makhana card.
+  [/makhan(?![a-z])|white\s*butter|butter/i, 'assets/photos/prod-butter.jpg'],
   [/paneer|cheese/i, 'assets/photos/prod-paneer.jpg'],
   [/curd|dahi|yogh?urt/i, 'assets/photos/prod-curd.jpg'],
   [/cream|malai/i, 'assets/photos/prod-khoya.jpg'],
@@ -338,14 +341,43 @@ export const STOCK_PHOTOS: ReadonlyArray<{ label: string; url: string }> = [
   { label: 'Farm at sunrise', url: 'assets/photos/farm-sunrise.jpg' }
 ];
 
+/**
+ * Turns a stored photo reference into something an `<img>` can load.
+ *
+ * Uploaded photos are stored as "/public/images/<id>" — a path relative to the
+ * API, not to the website — so the same database serves a laptop hitting
+ * 127.0.0.1 and the deployed backend without a rewrite. Bundled assets and
+ * full URLs are already loadable and pass straight through.
+ */
+export function photoSrc(url?: string | null): string {
+  const raw = (url || '').trim();
+  if (!raw) return '';
+  if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('data:')) return raw;
+  if (raw.startsWith('/public/') || raw.startsWith('public/')) {
+    return API_URL + (raw.startsWith('/') ? raw : '/' + raw);
+  }
+  return raw;
+}
+
 /** Best available photo for a product — never returns empty. */
-export function productPhoto(p: { imageUrl?: string; category?: string; name?: string }): string {
-  if (p.imageUrl && p.imageUrl.trim()) return p.imageUrl.trim();
+export function productPhoto(p: { imageUrl?: string; images?: string[]; category?: string; name?: string }): string {
+  const cover = (p.images || []).find(u => (u || '').trim());
+  if (cover) return photoSrc(cover);
+  if (p.imageUrl && p.imageUrl.trim()) return photoSrc(p.imageUrl);
   const haystack = `${p.category || ''} ${p.name || ''}`;
   for (const [pattern, photo] of CATEGORY_PHOTOS) {
     if (pattern.test(haystack)) return photo;
   }
   return FALLBACK_PHOTO;
+}
+
+/**
+ * Every photo for a product, in swipe order. Falls back to the single best
+ * photo so a card built on this always has at least one frame to show.
+ */
+export function productGallery(p: { imageUrl?: string; images?: string[]; category?: string; name?: string }): string[] {
+  const list = (p.images || []).map(u => photoSrc(u)).filter(u => !!u);
+  return list.length > 0 ? list : [productPhoto(p)];
 }
 
 /** Local-timezone-safe YYYY-MM-DD (for input[type=date]). */
