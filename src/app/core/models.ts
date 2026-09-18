@@ -16,6 +16,8 @@ export interface Product {
   unit: string;
   price: number;
   imageUrl?: string;
+  /** Gallery, in swipe order; the first entry is the cover. */
+  images?: string[];
   available: boolean;
   /** Teaser product (e.g. Mushroom, Spices) — shown with a "Coming soon" badge. */
   comingSoon?: boolean;
@@ -356,11 +358,32 @@ export interface BreakdownRow {
   detail: string;
 }
 
+/** Which dashboard card a breakdown belongs to — one per stat card. */
+export type BreakdownType =
+  | 'CASH' | 'ONLINE' | 'OUTSTANDING'
+  | 'TODAY_SALES' | 'MONTH_SALES' | 'WALKIN' | 'EXPENSES' | 'PROFIT' | 'CUSTOMERS';
+
 export interface Breakdown {
-  type: 'CASH' | 'ONLINE' | 'OUTSTANDING';
+  type: BreakdownType;
   title: string;
   subtitle: string;
   /** Always equals the card that was clicked; rows always sum to it. */
   total: number;
   rows: BreakdownRow[];
+}
+
+/** The shop's delivery rule, as the cart needs it. */
+export interface DeliveryInfo {
+  /** Order value at or above which delivery is free. 0 = always free. */
+  freeDeliveryAbove: number;
+  /** Charged below that threshold. */
+  deliveryCharge: number;
+  deliveryNote?: string | null;
+}
+
+/** The stored settings document, as the management panel sees it. */
+export interface ShopSettings extends DeliveryInfo {
+  id?: string;
+  updatedAt?: string;
+  updatedBy?: string | null;
 }

@@ -69,6 +69,66 @@ export class CouponService {
   /** Cart total after the discount — never below zero. */
   payable = computed(() => Math.max(0, Math.round((this.cart.total() - this.discount()) * 100) / 100));
 
+  // ------------------------------------------------------------------
+  // Per-offer maths — what the coupon list needs to show every code at
+  // once, the way a food-delivery app does: what each one saves today,
+  // and exactly how much more the cart needs for the ones still locked.
+  // ------------------------------------------------------------------
+
+  /** Has the cart reached this offer's minimum? No minimum = always true. */
+  unlocked(offer: Offer): boolean {
+    const min = offer?.minOrderAmount || 0;
+    return min <= 0 || this.cart.total() >= min;
+  }
+
+  /** What this offer takes off the cart as it stands. 0 while it is locked. */
+  savingFor(offer: Offer): number {
+    if (!offer || !this.unlocked(offer)) return 0;
+    return Math.round(this.cart.total() * offer.percentOff) / 100;
+  }
+
+  /** Rupees still missing before this offer works; 0 once it is unlocked. */
+  gapFor(offer: Offer): number {
+    const gap = (offer?.minOrderAmount || 0) - this.cart.total();
+    return gap > 0 ? Math.round(gap * 100) / 100 : 0;
+  }
+
+  /** 0–1 along the way to the minimum — the fill of the little progress bar. */
+  progressFor(offer: Offer): number {
+    const min = offer?.minOrderAmount || 0;
+    if (min <= 0) return 1;
+    return Math.min(1, Math.max(0, this.cart.total() / min));
+  }
+
+  /**
+   * What a locked offer would save once the cart just reaches its minimum.
+   *
+   * This is the number worth showing next to "add ₹120 more" — the shortfall
+   * alone tells a customer what it costs them, not what they get for it.
+   */
+  savingAtMinimum(offer: Offer): number {
+    const base = Math.max(this.cart.total(), offer?.minOrderAmount || 0);
+    return Math.round(base * (offer?.percentOff || 0)) / 100;
+  }
+
+  /**
+   * Every live offer, best first: the ones usable right now by biggest saving,
+   * then the locked ones by how close they are. A customer should never have
+   * to scroll past a coupon they cannot use to find one they can.
+   */
+  offerList = computed<Offer[]>(() =>
+    [...this.offers()].sort((a, b) => {
+      const ua = this.unlocked(a), ub = this.unlocked(b);
+      if (ua !== ub) return ua ? -1 : 1;
+      return ua ? this.savingFor(b) - this.savingFor(a) : this.gapFor(a) - this.gapFor(b);
+    }));
+
+  /** The closest locked offer — the one worth nudging about near the total. */
+  nextUnlock = computed<Offer | null>(() => {
+    const code = this.applied()?.code;
+    return this.offerList().find(o => !this.unlocked(o) && o.code !== code) || null;
+  });
+
   constructor() {
     effect(() => {
       const coupon = this.applied();

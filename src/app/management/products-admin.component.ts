@@ -7,12 +7,56 @@ import { saveBlob } from '../core/download';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
-import { STOCK_PHOTOS, productPhoto } from '../core/farm';
+import { STOCK_PHOTOS, photoSrc, productPhoto } from '../core/farm';
 import { Product, ProductVariant } from '../core/models';
 import { IconComponent } from '../shared/icon.component';
 import { ProductImage } from '../shared/product-image';
 
 /** Products CRUD + price update (write actions are full-admin only). */
+/**
+ * Pack sizes offered as one tap in the form, by base unit.
+ *
+ * These only fill the row in — the price that lands is a suggestion from the
+ * base rate, and the whole point of packs is that the farm then changes it:
+ * half a kilo of paneer sells at Rs. 230, not the Rs. 210 the arithmetic gives.
+ */
+const PACK_PRESETS: Readonly<Record<string, ReadonlyArray<{ label: string; quantity: number }>>> = {
+  litre: [
+    { label: '250 ml', quantity: 0.25 },
+    { label: '500 ml', quantity: 0.5 },
+    { label: '1 Litre', quantity: 1 },
+    { label: '2 Litre', quantity: 2 },
+    { label: '5 Litre', quantity: 5 }
+  ],
+  kg: [
+    { label: '100 g', quantity: 0.1 },
+    { label: '200 g', quantity: 0.2 },
+    { label: '250 g', quantity: 0.25 },
+    { label: '400 g', quantity: 0.4 },
+    { label: '500 g', quantity: 0.5 },
+    { label: '750 g', quantity: 0.75 },
+    { label: '1 kg', quantity: 1 },
+    { label: '2 kg', quantity: 2 }
+  ],
+  gram: [
+    { label: '100 g', quantity: 100 },
+    { label: '200 g', quantity: 200 },
+    { label: '250 g', quantity: 250 },
+    { label: '500 g', quantity: 500 },
+    { label: '1 kg', quantity: 1000 }
+  ],
+  piece: [
+    { label: '1 piece', quantity: 1 },
+    { label: '6 pieces', quantity: 6 },
+    { label: '12 pieces', quantity: 12 }
+  ],
+  packet: [
+    { label: '1 packet', quantity: 1 },
+    { label: '2 packets', quantity: 2 },
+    { label: '5 packets', quantity: 5 }
+  ]
+};
+
 @Component({
   selector: 'app-products-admin',
   standalone: true,
@@ -150,19 +194,55 @@ import { ProductImage } from '../shared/product-image';
               <textarea name="pdesc" [(ngModel)]="form.description" placeholder="Short description shown on the website"></textarea>
             </div>
             <div class="field field-wide">
-              <label>Product photo</label>
+              <label>Product photos <span class="hint-inline">first one is the cover · swipe order on the website</span></label>
               <div class="img-row">
                 <img class="img-preview" [src]="previewUrl()" alt="Selected photo" />
                 <div class="img-fields">
+
+                  @if (gallery().length > 0) {
+                    <div class="shots">
+                      @for (url of gallery(); track url; let i = $index) {
+                        <div class="shot" [class.cover]="i === 0">
+                          <img [src]="shot(url)" [alt]="'Photo ' + (i + 1)" loading="lazy" />
+                          @if (i === 0) { <span class="shot-tag">Cover</span> }
+                          <div class="shot-acts">
+                            @if (i > 0) {
+                              <button type="button" (click)="moveShot(i, -1)" title="Move left">‹</button>
+                              <button type="button" (click)="makeCover(i)" title="Make this the cover">★</button>
+                            }
+                            @if (i < gallery().length - 1) {
+                              <button type="button" (click)="moveShot(i, 1)" title="Move right">›</button>
+                            }
+                            <button type="button" class="del" (click)="removeShot(i)" title="Remove">✕</button>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+
+                  <div class="up-row">
+                    <label class="btn btn-outline btn-sm up-btn" [class.busy]="uploading > 0">
+                      @if (uploading > 0) {
+                        <span class="spinner"></span> Uploading {{ uploading }}…
+                      } @else {
+                        <app-icon name="plus" [size]="14" /> Add photos
+                      }
+                      <input type="file" accept="image/jpeg,image/png,image/webp" multiple
+                             (change)="pickFiles($event)" [disabled]="uploading > 0" />
+                    </label>
+                    <span class="hint-inline">Phone se seedha — JPG, PNG ya WebP, 12 MB tak. Bade photo apne aap chhote ho jaate hain.</span>
+                  </div>
+
+                  <p class="stock-head">Or pick a stock photo</p>
                   <div class="img-picks">
                     @for (sp of stockPhotos; track sp.url) {
-                      <button type="button" class="img-pick" [class.on]="form.imageUrl === sp.url"
-                              (click)="form.imageUrl = sp.url" [title]="sp.label">
+                      <button type="button" class="img-pick" [class.on]="gallery().includes(sp.url)"
+                              (click)="useStock(sp.url)" [title]="sp.label">
                         <img [src]="sp.url" [alt]="sp.label" loading="lazy" />
                       </button>
                     }
                     <button type="button" class="img-pick clear" [class.on]="!form.imageUrl"
-                            (click)="form.imageUrl = ''" title="Automatic photo">
+                            (click)="clearPhotos()" title="Automatic photo">
                       <app-icon name="close" [size]="15" [stroke]="2.2" />
                     </button>
                   </div>
@@ -191,6 +271,20 @@ import { ProductImage } from '../shared/product-image';
                     </button>
                   </div>
                 }
+              }
+              @if (packPresets().length > 0) {
+                <div class="pk-quick">
+                  <span class="pk-quick-lbl">Quick add</span>
+                  @for (s of packPresets(); track s.label) {
+                    <button type="button" class="pk-chip" (click)="addPreset(s)"
+                            [title]="'Add a ' + s.label + ' pack'">
+                      {{ s.label }}
+                      @if (suggestPrice(s.quantity) > 0) {
+                        <em>₹{{ suggestPrice(s.quantity) | number: '1.0-2' }}</em>
+                      }
+                    </button>
+                  }
+                </div>
               }
               <button type="button" class="btn btn-outline btn-sm pk-add" (click)="addPack()">
                 <app-icon name="plus" [size]="14" [stroke]="2.4" /> Add a pack size
@@ -289,9 +383,53 @@ import { ProductImage } from '../shared/product-image';
     .img-pick:hover { border-color: var(--gold); transform: translateY(-2px); }
     .img-pick.on { border-color: var(--gold-2); box-shadow: 0 0 0 2px rgba(228, 199, 102, 0.25); }
     .img-pick.clear:hover { color: var(--gold-2); }
+    .pk-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 10px; }
+    .pk-quick-lbl { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+    .pk-chip {
+      display: inline-flex; align-items: baseline; gap: 5px;
+      padding: 5px 11px; border-radius: 999px; cursor: pointer;
+      border: 1px dashed var(--line); background: transparent; color: var(--ivory);
+      font-family: var(--font-body); font-size: 0.8rem;
+    }
+    .pk-chip em { font-style: normal; color: var(--muted); font-size: 0.72rem; }
+    .pk-chip:hover { border-style: solid; border-color: var(--gold); background: var(--ghee-soft); }
+    .pk-chip:hover em { color: var(--gold-2); }
+
+    .shots { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .shot {
+      position: relative; width: 84px; height: 64px; border-radius: 9px; overflow: hidden;
+      border: 1.5px solid var(--line-soft); background: #12100A;
+    }
+    .shot.cover { border-color: var(--gold-2); box-shadow: 0 0 0 2px rgba(228, 199, 102, 0.22); }
+    .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .shot-tag {
+      position: absolute; left: 0; bottom: 0; padding: 1px 6px;
+      font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase;
+      background: var(--gold); color: #171307; border-top-right-radius: 6px;
+    }
+    /* Controls sit on the thumbnail itself: a row of 6 photos with buttons
+       underneath each would push the rest of the form off a phone screen. */
+    .shot-acts { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 2px;
+      background: rgba(10, 8, 4, 0.72); opacity: 0; transition: opacity 0.15s ease; }
+    .shot:hover .shot-acts, .shot:focus-within .shot-acts { opacity: 1; }
+    .shot-acts button {
+      border: none; background: rgba(255, 255, 255, 0.12); color: var(--ivory);
+      width: 22px; height: 22px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; line-height: 1;
+    }
+    .shot-acts button:hover { background: var(--gold); color: #171307; }
+    .shot-acts .del:hover { background: var(--danger); color: #fff; }
+    @media (hover: none) { .shot-acts { opacity: 1; background: rgba(10, 8, 4, 0.45); } }
+
+    .up-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .up-btn { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; }
+    .up-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .up-btn.busy { pointer-events: none; opacity: 0.7; }
+    .stock-head { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+
     @media (max-width: 560px) {
       .img-row { flex-direction: column; }
       .img-preview { width: 100%; height: 140px; }
+      .shot { width: 72px; height: 56px; }
     }
   `]
 })
@@ -320,13 +458,93 @@ export class ProductsAdminComponent implements OnInit {
     this.load();
   }
 
+  /** How many uploads are still in flight, so the button can say so. */
+  uploading = 0;
+
   /** What the website would actually show for the product being edited. */
   previewUrl(): string {
     return productPhoto(this.form);
   }
 
+  /* ---------------- photo gallery ---------------- */
+
+  /**
+   * The gallery as stored. An older product has only `imageUrl`, so it is read
+   * as a one-photo gallery rather than migrated — nothing is rewritten until
+   * the staff member actually saves a change.
+   */
+  gallery(): string[] {
+    const list = (this.form.images || []).filter(u => !!(u || '').trim());
+    if (list.length > 0) return list;
+    return this.form.imageUrl?.trim() ? [this.form.imageUrl.trim()] : [];
+  }
+
+  /** Thumbnail source for a stored reference. */
+  shot(url: string): string {
+    return photoSrc(url);
+  }
+
+  private setGallery(list: string[]) {
+    this.form.images = list;
+    // The cover is mirrored into imageUrl so cards, the cart and the bill PDF
+    // keep showing the right photo without knowing about galleries.
+    this.form.imageUrl = list[0] || '';
+  }
+
+  pickFiles(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const files = Array.from(input.files || []);
+    input.value = '';                       // same file twice should still work
+    if (files.length === 0) return;
+
+    this.uploading = files.length;
+    for (const file of files) {
+      this.api.uploadImage(file).subscribe({
+        next: res => {
+          this.setGallery([...this.gallery(), res.url]);
+          this.uploading--;
+        },
+        error: err => {
+          this.uploading--;
+          this.toast.error(err?.error?.message || err?.error?.error || `${file.name} upload nahi hua.`);
+        }
+      });
+    }
+  }
+
+  removeShot(i: number) {
+    const list = [...this.gallery()];
+    list.splice(i, 1);
+    this.setGallery(list);
+  }
+
+  moveShot(i: number, by: number) {
+    const list = [...this.gallery()];
+    const to = i + by;
+    if (to < 0 || to >= list.length) return;
+    [list[i], list[to]] = [list[to], list[i]];
+    this.setGallery(list);
+  }
+
+  makeCover(i: number) {
+    const list = [...this.gallery()];
+    const [pick] = list.splice(i, 1);
+    this.setGallery([pick, ...list]);
+  }
+
+  /** A stock pick joins the gallery instead of replacing it. */
+  useStock(url: string) {
+    const list = this.gallery();
+    if (list.includes(url)) return;
+    this.setGallery([...list, url]);
+  }
+
+  clearPhotos() {
+    this.setGallery([]);
+  }
+
   private blank(): Product {
-    return { name: '', category: '', description: '', unit: 'Litre', price: 0, imageUrl: '', available: true, comingSoon: false, sortOrder: this.products.length + 1, variants: [] };
+    return { name: '', category: '', description: '', unit: 'Litre', price: 0, imageUrl: '', images: [], available: true, comingSoon: false, sortOrder: this.products.length + 1, variants: [] };
   }
 
   /* ---------------- pack sizes ---------------- */
@@ -334,6 +552,35 @@ export class ProductsAdminComponent implements OnInit {
   addPack() {
     if (!this.form.variants) this.form.variants = [];
     this.form.variants.push({ label: '', quantity: 0, price: 0, available: true });
+  }
+
+  /** Sizes worth offering for the unit currently chosen, minus the ones already added. */
+  packPresets(): ReadonlyArray<{ label: string; quantity: number }> {
+    const list = PACK_PRESETS[(this.form.unit || '').trim().toLowerCase()] || [];
+    const taken = (this.form.variants || []);
+    return list.filter(s => !taken.some(v =>
+      v.label.trim().toLowerCase() === s.label.toLowerCase() || Math.abs(v.quantity - s.quantity) < 1e-9));
+  }
+
+  /**
+   * The straight-line price for a pack, rounded to something a shop would
+   * actually charge. It is only ever a starting point — the row stays editable,
+   * and the rate hint beside it shows the moment the farm prices it higher.
+   */
+  suggestPrice(quantity: number): number {
+    const raw = (this.form.price || 0) * quantity;
+    if (raw <= 0) return 0;
+    return raw < 20 ? Math.round(raw) : Math.round(raw / 5) * 5;
+  }
+
+  addPreset(size: { label: string; quantity: number }) {
+    if (!this.form.variants) this.form.variants = [];
+    this.form.variants.push({
+      label: size.label,
+      quantity: size.quantity,
+      price: this.suggestPrice(size.quantity),
+      available: true
+    });
   }
 
   removePack(index: number) {
