@@ -9,13 +9,15 @@ import { CouponService } from '../core/coupon.service';
 import {
   DELIVERY_SLOTS, DeliverySlot, defaultSlotChoice, isoDate, niceDay, slotAvailable, waLink
 } from '../core/farm';
+import { burstFrom } from '../core/confetti';
+import { CouponListComponent } from '../shared/coupon-list.component';
 import { IconComponent } from '../shared/icon.component';
 import { ProductImage } from '../shared/product-image';
 
 @Component({
   selector: 'app-cart',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, IconComponent],
+  imports: [CommonModule, FormsModule, RouterLink, CouponListComponent, IconComponent],
   template: `
     <div class="container page-head">
       <span class="eyebrow">Your cart</span>
@@ -96,14 +98,25 @@ import { ProductImage } from '../shared/product-image';
                 <button type="button" class="cp-remove" (click)="removeCoupon()">Remove coupon</button>
               } @else {
                 <div class="cp-row">
-                  <input name="ccode" [(ngModel)]="couponCode" (keyup.enter)="applyCoupon()"
+                  <input name="ccode" [(ngModel)]="couponCode" (keyup.enter)="applyCoupon($event)"
                          placeholder="Have a coupon code?" aria-label="Coupon code"
                          autocapitalize="characters" autocomplete="off" spellcheck="false" />
-                  <button type="button" class="btn btn-outline btn-sm" (click)="applyCoupon()" [disabled]="checking">
+                  <button type="button" class="btn btn-outline btn-sm" (click)="applyCoupon($event)" [disabled]="checking">
                     @if (checking) { <span class="spinner"></span> } Apply
                   </button>
                 </div>
                 @if (couponError) { <p class="cp-msg">{{ couponError }}</p> }
+              }
+
+              <!-- Every running code, with the gap to the ones not yet unlocked. -->
+              <app-coupon-list />
+
+              @if (coupons.nextUnlock(); as next) {
+                <p class="cp-nudge">
+                  <app-icon name="percent" [size]="13" />
+                  Add ₹{{ coupons.gapFor(next) | number: '1.0-2' }} more and {{ next.code }} saves you
+                  ₹{{ coupons.savingAtMinimum(next) | number: '1.0-2' }}.
+                </p>
               }
 
               <div class="srow total"><span>Total</span><b>₹{{ coupons.payable() | number: '1.0-2' }}</b></div>
@@ -214,6 +227,12 @@ import { ProductImage } from '../shared/product-image';
     .cp-row input::placeholder { text-transform: none; letter-spacing: normal; font-weight: 400; }
     .cp-row .btn { flex: none; }
     .cp-msg { font-size: 0.8rem; color: var(--danger); margin: 2px 0 6px; }
+    .cp-nudge {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 0.78rem; line-height: 1.5; color: var(--gold-2);
+      background: var(--ghee-soft); border: 1px dashed var(--line);
+      border-radius: 10px; padding: 8px 11px; margin: 0 0 10px;
+    }
     .cp-short { font-size: 0.78rem; color: var(--gold-2); margin: 4px 0 2px; line-height: 1.5; }
     .cp-waiting span, .cp-waiting b { opacity: 0.55; }
     .cp-on span { display: inline-flex; align-items: center; gap: 6px; color: var(--gold-2); font-weight: 700; }
@@ -273,7 +292,11 @@ export class CartComponent implements OnInit {
    * Verified on the server before it is stored, so the figure that ends up in
    * the WhatsApp message is always one the farm will honour.
    */
-  applyCoupon() {
+  applyCoupon(ev?: Event) {
+    // Captured now, not in the callback: the browser clears currentTarget once
+    // the event finishes dispatching, so by the time the check comes back it
+    // would be null and the burst would start from the middle of the screen.
+    const from = ev?.currentTarget as Element | undefined;
     const code = this.couponCode.trim().toUpperCase();
     this.couponError = '';
     if (!code) { this.couponError = 'Enter a coupon code first.'; return; }
@@ -289,6 +312,7 @@ export class CartComponent implements OnInit {
           minOrderAmount: res.minOrderAmount || 0
         });
         this.couponCode = '';
+        burstFrom(from);
       },
       error: () => {
         this.checking = false;

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 
 import { CouponService } from '../core/coupon.service';
 import { ToastService } from '../core/toast.service';
+import { burstFrom } from '../core/confetti';
 
 interface TickerItem {
   text: string;
@@ -27,7 +28,7 @@ interface TickerItem {
         <div class="tk-track" [style.animation-duration.s]="duration()">
           <div class="tk-set">
             @for (item of marquee(); track $index) {
-              <button type="button" class="tk-item" (click)="use(item.code)"
+              <button type="button" class="tk-item" (click)="use(item.code, $event)"
                       [attr.title]="'Apply ' + item.code + ' to your cart'">
                 <span class="tk-star" aria-hidden="true">&#10022;</span>
                 <span>{{ item.text }}</span>
@@ -131,7 +132,7 @@ export class OfferStripComponent implements OnInit {
     this.coupons.loadOffers();
   }
 
-  use(code: string) {
+  use(code: string, ev?: MouseEvent) {
     const offer = this.coupons.offers().find(o => o.code === code);
     if (!offer) return;
 
@@ -142,6 +143,7 @@ export class OfferStripComponent implements OnInit {
     // Clipboard is a bonus, not the mechanism — it is blocked on plain HTTP and
     // in some in-app browsers, and the coupon is already applied by then.
     try { navigator.clipboard?.writeText(code); } catch { /* no clipboard */ }
+    burstFrom(ev?.currentTarget as Element | undefined);
     this.toast.success(`${code} applied — ${offer.percentOff}% off at checkout.`);
   }
 }

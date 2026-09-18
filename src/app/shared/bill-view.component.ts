@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -523,7 +523,18 @@ import { IconComponent } from './icon.component';
     .chip-udhaar { background: rgba(228, 199, 102, 0.12); color: var(--gold-2); border: 1px solid var(--line); }
   `]
 })
-export class BillViewComponent {
+export class BillViewComponent implements OnChanges {
+  /**
+   * A fresh bill (after a delete, or a new date range) must not keep ticks on
+   * rows that are gone — otherwise the bar counts entries that no longer exist
+   * and its Delete button sends an empty list.
+   */
+  ngOnChanges(changes: SimpleChanges) {
+    if (!changes['bill'] || this.selected.size === 0) return;
+    const live = new Set((this.bill.entries || []).map(e => e.id).filter((id): id is string => !!id));
+    this.selected.forEach(id => { if (!live.has(id)) this.selected.delete(id); });
+  }
+
   monthLabel = monthLabel;
   private toast = inject(ToastService);
   private api = inject(ApiService);
