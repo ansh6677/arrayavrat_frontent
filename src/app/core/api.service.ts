@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 
 import { API_URL } from './farm';
-import { Bill, Breakdown, CouponPreview, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Offer, Payment, Product, Stats, UserInfo } from './models';
+import { Bill, Breakdown, BreakdownType, CouponPreview, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Offer, Payment, Product, Stats, UserInfo } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -224,7 +224,7 @@ export class ApiService {
   }
 
   /** Who is behind a dashboard figure — cash, online or outstanding. */
-  getBreakdown(type: 'CASH' | 'ONLINE' | 'OUTSTANDING', month?: string) {
+  getBreakdown(type: BreakdownType, month?: string) {
     let params = new HttpParams().set('type', type);
     if (month) params = params.set('month', month);
     return this.http.get<Breakdown>(`${API_URL}/admin/stats/breakdown`, { params });

@@ -356,8 +356,13 @@ export interface BreakdownRow {
   detail: string;
 }
 
+/** Which dashboard card a breakdown belongs to — one per stat card. */
+export type BreakdownType =
+  | 'CASH' | 'ONLINE' | 'OUTSTANDING'
+  | 'TODAY_SALES' | 'MONTH_SALES' | 'WALKIN' | 'EXPENSES' | 'PROFIT' | 'CUSTOMERS';
+
 export interface Breakdown {
-  type: 'CASH' | 'ONLINE' | 'OUTSTANDING';
+  type: BreakdownType;
   title: string;
   subtitle: string;
   /** Always equals the card that was clicked; rows always sum to it. */
