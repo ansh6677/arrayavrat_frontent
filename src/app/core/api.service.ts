@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 
 import { API_URL } from './farm';
-import { Bill, Breakdown, BreakdownType, CouponPreview, DeliveryInfo, ShopSettings, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Offer, Payment, Product, Stats, UserInfo } from './models';
+import { Bill, BannerInfo, Breakdown, BreakdownType, CouponPreview, DeliveryInfo, ShopSettings, DailyEntry, DayDetail, Expense, ExtraSale, ExtraSummary, LoginActivity, Offer, Payment, Product, Stats, UserInfo } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -22,7 +22,7 @@ export class ApiService {
 
   // ---------------- Public: offers ----------------
 
-  /** Live, advertisable coupons — what the strip across the top of the site shows. */
+  /** Live, listable coupons — what the cart's offer list shows. */
   getLiveOffers() {
     return this.http.get<Offer[]>(`${API_URL}/public/offers`);
   }
@@ -128,7 +128,7 @@ export class ApiService {
 
   // ---------------- Admin: payments ----------------
 
-  addPayment(data: { customerId: string; amount: number; paymentDate?: string; mode?: string; note?: string; forPeriod?: string }) {
+  addPayment(data: { customerId: string; amount: number; paymentDate?: string; mode?: string; note?: string }) {
     return this.http.post<Payment>(`${API_URL}/admin/payments`, data);
   }
 
@@ -235,6 +235,15 @@ export class ApiService {
   /** Public: the cart needs the delivery rule before anyone signs in. */
   getDeliveryInfo() {
     return this.http.get<DeliveryInfo>(`${API_URL}/public/settings`);
+  }
+
+  /** Public: the strip shows on every page, signed in or not. */
+  getBanner() {
+    return this.http.get<BannerInfo>(`${API_URL}/public/banner`);
+  }
+
+  saveBanner(body: BannerInfo) {
+    return this.http.put<ShopSettings>(`${API_URL}/admin/settings/banner`, body);
   }
 
   getShopSettings() {
