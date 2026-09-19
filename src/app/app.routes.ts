@@ -17,6 +17,7 @@ import { CustomerDetailComponent } from './management/customer-detail.component'
 import { ExpensesComponent } from './management/expenses.component';
 import { ExtraSalesComponent } from './management/extra-sales.component';
 import { ProductsAdminComponent } from './management/products-admin.component';
+import { BannerAdminComponent } from './management/banner-admin.component';
 import { DeliveryAdminComponent } from './management/delivery-admin.component';
 import { OffersAdminComponent } from './management/offers-admin.component';
 import { StaffComponent } from './management/staff.component';
@@ -47,6 +48,7 @@ export const routes: Routes = [
       { path: 'products', component: ProductsAdminComponent },
       { path: 'offers', component: OffersAdminComponent },
       { path: 'delivery', component: DeliveryAdminComponent },
+      { path: 'banner', component: BannerAdminComponent },
       { path: 'staff', component: StaffComponent, canActivate: [fullAdminGuard] }
     ]
   },
