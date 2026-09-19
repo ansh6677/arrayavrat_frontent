@@ -16,10 +16,10 @@ export interface AppliedCoupon {
 }
 
 /**
- * The applied coupon, shared by the cart and the site strip.
+ * The applied coupon, remembered across the visit.
  *
  * It lives beside the cart in localStorage so a code survives a reload — a
- * customer who copies a code from the strip, browses products and comes back
+ * customer who picks a code in the cart, browses more products and comes back
  * to the cart should not have to type it again.
  *
  * The discount here is only ever a *display*: orders are sent as WhatsApp
@@ -34,7 +34,7 @@ export class CouponService {
 
   applied = signal<AppliedCoupon | null>(this.restore());
 
-  /** Live, advertisable offers — loaded once for the site strip. */
+  /** Live, listable offers — what the cart's offer list shows. */
   offers = signal<Offer[]>([]);
   private offersLoaded = false;
 

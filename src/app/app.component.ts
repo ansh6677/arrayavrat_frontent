@@ -8,19 +8,19 @@ import { ToastsComponent } from './shared/toasts.component';
 import { LoadingBarComponent } from './shared/loading-bar.component';
 import { FooterComponent } from './shared/footer.component';
 import { WhatsappFabComponent } from './shared/whatsapp-fab.component';
-import { OfferStripComponent } from './shared/offer-strip.component';
+import { BannerStripComponent } from './shared/banner-strip.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, NavbarComponent, FooterComponent, ToastsComponent, LoadingBarComponent, ConfirmComponent, WhatsappFabComponent, OfferStripComponent],
+  imports: [RouterOutlet, NavbarComponent, FooterComponent, ToastsComponent, LoadingBarComponent, ConfirmComponent, WhatsappFabComponent, BannerStripComponent],
   template: `
     <app-loading-bar />
     <app-toasts />
     <app-confirm />
     @if (!isManagement()) { <app-navbar /> }
     <!-- Offers ticker sits directly under the header, where a promo bar is expected -->
-    @if (!isManagement()) { <app-offer-strip /> }
+    @if (!isManagement()) { <app-banner-strip /> }
     <main id="main"><router-outlet /></main>
     @if (!isManagement()) { <app-footer /> }
     <!-- Floating WhatsApp button — public site only, admin panel stays clean -->
