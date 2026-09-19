@@ -315,7 +315,7 @@ export interface Offer {
   id?: string;
   /** Upper-case, letters and numbers only — what the customer types. */
   code: string;
-  /** Headline on the site strip, e.g. "10% off everything". */
+  /** Headline on the coupon card, e.g. "10% off everything". */
   title: string;
   description?: string | null;
   percentOff: number;
@@ -326,7 +326,7 @@ export interface Offer {
   /** ISO dates; null means no limit on that end. */
   validFrom?: string | null;
   validTo?: string | null;
-  /** Whether the sitewide strip advertises the code. Off = private code. */
+  /** Whether the cart lists the code. Off = private code, shared by hand. */
   showOnSite: boolean;
   /** How many times the code has been applied. */
   usedCount?: number;
@@ -384,6 +384,17 @@ export interface DeliveryInfo {
 /** The stored settings document, as the management panel sees it. */
 export interface ShopSettings extends DeliveryInfo {
   id?: string;
+  bannerEnabled?: boolean;
+  bannerMessages?: string[] | null;
+  bannerTone?: string;
   updatedAt?: string;
   updatedBy?: string | null;
+}
+
+/** The announcement strip under the site header — the farm's own words. */
+export interface BannerInfo {
+  enabled: boolean;
+  messages: string[];
+  /** gold (normal), green (good news) or red (something is off today). */
+  tone: string;
 }
